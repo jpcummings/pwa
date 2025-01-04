@@ -1,0 +1,222 @@
+@
+\section{Introduction}
+
+[[int]] is the program that evaluates the partial wave analysis
+normalization integrals numerically.  There are two integrals required
+for each bin, one called the ``accepted normalization integral'' is used
+at fit time, the other, called the ``raw normalization integral is used
+when calculating observables from the fit result.
+
+This program can be used to calculate either integral.  The amplitudes
+are assumed to be in separate files in the current directory, one
+file for each amplitude in the integral.  The integral is written to
+standard output in ASCII format.  The integral remembers the filenames
+of the amplitude files used, and individual elements of the integral may
+accessed by these names, see the documentation for the [[integral]] class.
+
+The simplest example of the programs use is to have a set of files in the
+current directory which are the decay amplitudes for monte-carlo events
+as calculated by [[gamp]]. It is probably useful to put some minimal
+thought into the naming scheme for these files, somehow specifying the
+wave each contains and a suitable extension such as [[.amp]] (although
+there is no {\em required} file naming scheme or extension). With names
+such as [[1++rho_piS.amp]], [[1-+rho_piP.amp]], {\em etc.}, the integrals
+may be done with:
+
+\vspace{0.5cm}
+
+[[$ int *.amps > 1.100-1.150.int]]
+
+\vspace{0.5cm}
+
+where the name of the output file was choosen to contain information
+about the mass bin of the integral.
+
+It may sometimes be useful to add events to an already existing integral.
+The program allows for this with a flag [[-a intfile]] to specify the
+integral to add to.  The filenames for the amplitudes will be read from
+[[intfile]] and they must all exist in the current directory; a typical command might look like:
+
+\vspace{0.5cm}
+
+[[$ int -a 1.100-1.150.int > 1.100-1.150.larger.int]]
+
+\vspace{0.5cm}
+
+Both of the above forms of the command also accept [[-m max]] and
+[[-r n]] flags.  The [[-m max]] flag sets a maximum number of events
+to read from the ampfiles.  When adding to an existing amplitude file,
+this number refers to the number {\em added}, not the total number used
+in the integration.
+
+There are times when it is useful to lie about the number of events used
+in the integration, a process we make sound less pejorative by giving
+it the name renormalization.  This is accomplished with the [[-r n]]
+flag, which instructs the integral to believe it was calculated with
+[[n]] events.  Renormalization could fool you into thinking your errors
+are smaller than reality, and should only be used when the errors are
+small enough to ignore in the first place.  See the documentation on the
+[[integral]] class for more details.
+
+For cases when existing integrals need to be renormalized, a third form
+of the command is used:
+
+\vspace{0.5cm}
+
+[[$ int -r 1000000 -i 1.100-1.150.int > 1.100-1.150.renorm.int]]
+
+\vspace{0.5cm}
+
+The new integral will report that 1,000,000 events were used during
+integration.
+
+\section{The [[main]] routine}
+
+The logic of the program is very simple.  After parsing arguments,
+initialize the integral appropriately.  If amplitudes are being added to
+the integral, do so.  Next renormalize the integral if it is requested.
+Finally print the result to standard output.
+
+<<int.cc>>=
+#include <iostream>
+#include <string>
+#include <list>
+#include <cstdlib>
+#include <unistd.h>
+#include <integral.h>
+
+using std::ifstream;
+using std::cerr;
+using std::endl;
+using std::string;
+
+<<printUsage definition>>
+
+int main(int argc, char** argv) {
+
+    int debug = 0;
+    int maxevents = 0;
+    int renorm = 0;
+    int add = 1;
+    int display_events = 0;
+    string oldint;
+    integral ni;
+
+    <<parse args>>
+
+    <<initialize integral>>
+
+    if (display_events) {
+       ni.print_events();
+    } else {
+
+       if (add) {
+           <<integrate>>
+       }
+       if (renorm) {
+          ni.renormalize(renorm);
+       }
+       ni.print();
+    }
+    return 0;
+}
+
+
+@
+\subsection{Initialization}
+
+Read the integral from [[oldint]] if its size is non-zero, otherwise
+initialize an integral with the filenames from the programs argument list.
+
+<<initialize integral>>=
+    if (oldint.size()) {
+        ifstream oldfile(oldint.c_str());
+        ni.scan(oldfile);
+    }
+    else {
+        ni.files(argv+optind);
+    }
+
+@
+\subsection{Integration}
+
+Call [[integral::max(n)]] to set the maximum number of events to be used,
+if [[maxevents]] is unset, this has no effect. Then try the integration,
+if any exceptions are thrown, catch them and exit the program.
+
+<<integrate>>=
+    ni.max(maxevents);
+    try {
+        ni.integrate();
+    }
+    catch (char* m) {
+        cerr << m << endl;
+        return 0;
+    }
+
+@
+\section{Utility Functions}
+
+[[int]] is so simple there is only one utility function: [[printUsage]].
+
+<<printUsage definition>>=
+void printUsage(char* prog) {
+    cerr << "usage:"  << endl;
+    cerr << "  creating     : " << prog \
+         << " [-d] [-m max] [-r n] files" << endl;
+    cerr << "  adding       : " << prog \
+         << " [-d] [-m max] [-r n] -a intfile" << endl;
+    cerr << "  display evts : " << prog \
+         << " [-q] -i intfile" << endl;
+    cerr << "  renormalizing: " << prog \
+         << " [-r n] -i intfile" << endl;
+    cerr << "  help         : " << prog \
+         << " [-h]" << endl;
+    cerr << "where:" << endl;
+    cerr << "    max    : maximum number of events" << endl;
+    cerr << "    n      : number of events to renormalize to" << endl;
+    cerr << "    intfile: integral file to read" <<  endl;
+    cerr << "             (for adding to or renormalizing)" << endl;
+    cerr << endl;
+    exit(0);
+}
+
+
+@
+\subsection{Argument Parsing}
+
+We use [[getopt]] to parse the arguments. the cases for [[a]] and [[i]]
+are similar, except [[i]] sets [[add = 0]] (it's initial value is 1).
+This tells [[int]] not to read in more amplitudes to be added.  The [[-i]]
+flag is used when only renormalization is being done.
+
+<<parse args>>=
+    extern int optind;
+    extern char* optarg;
+    int c;
+    if (argc == 1) printUsage(argv[0]);
+    while ( (c = getopt(argc,argv, "dm:r:a:i:h:q")) != -1 )
+        switch(c) {
+            case 'd':
+                debug = 1;    
+                break;
+            case 'q':
+                display_events = 1;
+                break;
+            case 'm':
+                maxevents = atoi(optarg);    
+                break;
+            case 'r':
+                renorm = atoi(optarg);    
+                break;
+            case 'a':
+                oldint = optarg;    
+                break;
+            case 'i':
+                add = 0;
+                oldint = optarg;    
+                break;
+            case 'h':
+            case '?':
+                printUsage(argv[0]);
+        }

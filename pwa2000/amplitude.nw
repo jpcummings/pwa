@@ -1,0 +1,88 @@
+
+
+
+@
+
+This is a class to hold amplitudes for partial wave analysis.  It is simply a [[Complex]] decay amplitude, a mass, and a t.
+
+<<amplitude.h>>=
+
+#include <Complex.h>
+
+class amplitude: public Complex {
+	private:
+		double _mass;
+		double _t;
+
+	public:
+		amplitude():Complex() {
+			this->_mass = 0;
+			this->_t = 0;
+		}
+		~amplitude() {;}
+		amplitude(double mass, double t, Complex z):Complex(z) {
+			this->_mass = mass;
+			this->_t = t;
+		}
+		
+		amplitude(Complex z):Complex(z) {;}
+		
+		amplitude(amplitude &A):Complex(A) {
+			this->_mass = A._mass;
+			this->_t = A._t;
+		}
+		amplitude& operator=(const amplitude& A) {
+			Complex::operator=(A);
+			this->_mass = A._mass;
+			this->_t = A._t;
+			return(*this);
+		}
+
+		amplitude set(Complex z) {
+			Complex::operator=(z);
+			return *this;
+		}
+		amplitude set(double mass, double t) {
+			this->_mass = mass;
+			this->_t = t;
+			return *this;
+		}
+							 
+		double mass() const { return this->_mass; }
+		double t() const { return this->_t; }
+		
+		void print() const {
+			cout << "mass: " << this->_mass << " ";
+			cout << "t: " << this->_t << " ";
+			cout << "amp: " << *this << endl;
+		}
+		
+		void write(ofstream os) const {
+			os.write(&(this->_mass),sizeof(double));
+			os.write(&(this->_t),sizeof(double));
+			os.write(this,sizeof(Complex));
+		}
+		
+		void read(ifstream is) {
+			is.read(&(this->_mass),sizeof(double));
+			is.read(&(this->_t),sizeof(double));
+			is.read(this,sizeof(Complex));
+		}
+		
+		void readOldAmplitude(ifstream& is) {
+			int nwaves[2];
+			double mass, t;
+			Complex amp;
+			
+			is.read(&nwaves[0],sizeof(int));
+			is.read(&nwaves[1],sizeof(int));
+			assert(nwaves[0]+nwaves[1] == 1);
+			is.read(&mass,sizeof(double));
+			is.read(&t,sizeof(double));
+			is.read(&amp,sizeof(Complex));
+			this->set(mass,t);
+			this->set(amp);
+		}
+		
+};
+

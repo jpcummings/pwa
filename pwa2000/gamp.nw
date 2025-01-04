@@ -1,0 +1,115 @@
+@
+\section {Introduction}
+
+The decay amplitude calculator for the {\em pwa2000 } is called {\em gamp
+}, as in {\em g}enerate {\em amp}litudes.  The {\em gamp} reads a program
+from a file {\em keyfile} supplied as an argument on the command line.
+The syntax of the {\em keyfile} is described in the documentation for
+the the [[keyfile]] class.
+
+\section{The Program}
+
+<<gamp.cc>>=
+#include <cstdlib>
+#include <unistd.h>
+#include <pputil.h>
+#include <keyfile.h>
+
+using std::cout;
+using std::cin;
+using std::cerr;
+using std::flush;
+using std::endl;
+
+extern int keydebug;
+extern particleDataTable PDGtable;
+void printUsage(char* pname);
+
+int main(int argc, char** argv) {
+	char *pdgFile = (char *) NULL;
+	char* pname = argv[0];
+	extern char *optarg;
+	extern int optind;
+	int c;
+	keyfile keyf;
+	event e;
+	int printPDG = 0;
+	int dumpPDG = 0;
+
+	<<parse command line args>>
+        if(pdgFile)
+		PDGtable.initialize(pdgFile);
+        else
+	        PDGtable.initialize();
+
+	if (dumpPDG) {
+		PDGtable.dump();
+		cout << flush;
+	}
+	if (printPDG) {
+		PDGtable.print();
+		cout << flush;
+	}	
+		
+ 
+	if (!argv[optind]) {
+		cerr << pname << ": ERROR: no keyfile specified" << endl;
+		printUsage(pname);
+	}
+	keyf.open(argv[optind]);	
+
+	<<run keyfile on each event>>
+
+	return 0;
+
+}
+
+@
+[[getopt]] parses the command line arguments.  The only options supported
+right now are [[-t]] to turn on the keyfile parsing trace output, and
+either [[-h]] or [[-?]] to print the usage.
+
+<<parse command line args>>=
+	while ( (c = getopt(argc,argv, "htP:vD")) != -1 )
+		switch(c) {
+		case 'P':
+			pdgFile = optarg;
+			break;
+		case 'v':
+			printPDG = 1;
+			break;
+		case 'D':
+			dumpPDG = 1;
+			break;
+		case 't':
+			keydebug = 1;
+			break;
+		case 'h':
+		case '?':
+			printUsage(pname);
+		}
+
+@
+[[gamp]] runs the keyfile on each event that it reads from the standard
+input, so it must rewind the keyfile after each event.  The performance
+hit is not as great as you might think.
+
+<<run keyfile on each event>>=
+	while(!(cin>>e).eof()) {
+		keyf.run(e);
+		keyf.rewind();
+	}
+
+
+<<gamp.cc>>=
+void printUsage(char* pname) {
+	cerr << "usage: " << pname << " [-t] keyfile [-P pdgFile] [-v] [-D] < datafile" << endl;
+	cerr << "\t-t:\tparser trace" << endl;
+	cerr << "\t-P pdgFile:\tread PDG table from pdgFile" << endl;
+	cerr << "\t-v:\tprint pdgTable" << endl;
+	cerr << "\t-D:\tdump pdgTable" << endl;
+	cerr << "\tkeyfile: decay amplitude specification" << endl;
+
+	exit(1);
+}
+

@@ -1,0 +1,818 @@
+@
+\def\meth #1 {\noindent\vrule width2cm height0.1cm depth0cm\hskip 3mm {\bf#1} \hfill \break }
+\section{Introduction}
+\label{intro}
+
+One of the important reasons that partial wave analysis is such a powerful
+tool for understanding a complicated spectrum is that the acceptance
+correction is handled in such a general way.  By using an unbinned maximum
+likelihood fit in each region of mass and $t$, the acceptance correction
+is done on a wave-by-wave basis, not event-by-event.  This means there
+is no need to calculate an acceptance as a function of $\tau$ (the
+kinematic variables needed to fix the event.)  Instead these variables
+are integrated over and an average acceptance is calculated--{\em but
+separately for each wave}.  The average acceptance of each wave in the
+fit is thus accounted for separately.
+
+There are two integrals required for each mass and $t$ bin, one called the
+``accepted normalization integral'' is used at fit time. The other, called
+the ``raw normalization integral'' is used when calculating observables
+from the fit result.
+
+The evaluation of the $ \ln(\cal L) $ at fitting time involves calculation
+of the integral
+\begin{equation}
+\int I(\tau)\eta(\tau) \prod_i p_i d\tau.
+\end{equation}
+where $\tau$ are the angles and masses that specify an event, $I(\tau)$
+is the intensity, $\eta(\tau)$ is the acceptance function, and $\prod_i
+p_i d\tau$ is a phase space element (the $p_i$ are the breakup momenta
+of two body subsystems in their ``parents'' rest frame.)
+
+By factoring the total amplitude into a production, $V_\alpha$, which
+is a fit parameter, and a decay amplitude $\psi_\alpha(\tau)$, the
+intensity distribution $I(\tau)$ can be rewritten in terms of these and
+the integral becomes:
+\begin{eqnarray}
+\int I(\tau)\eta(\tau)d{\rm p.s.} & = & \int \left| \sum_\alpha V_\alpha \psi_\alpha(\tau) \right|^2 \eta(\tau) d{\rm p.s.} \\
+ & = & \sum_{\alpha \alpha'} V_\alpha V_{\alpha'}^\ast \int_{\eta(\tau)\ne 0} \psi_\alpha(\tau)\psi_{\alpha'}^\ast(\tau) d{\rm p.s.}
+\end{eqnarray}
+
+This integral is evaluated by summing
+$\psi_\alpha(\tau)\psi_{\alpha'}^\ast(\tau)$ over accepted monte-carlo
+phase space events.
+
+\begin{equation}
+\int \rightarrow \Psi_{\alpha \alpha'} = {1\over{M_a}}\sum_i^{M_a} \psi_\alpha(\tau_i)\psi^\ast_{\alpha'}(\tau_i) 
+\end{equation}
+where the sum is over the number of accepted monte-carlo events, $M_a$.
+In principle, the $1\over{M_a}$ factor should read $1\over{M}$, the total
+number of phase-space monte-carlo events generated,  but the production
+amplitudes $V_\alpha$ are renormalized in the fit to require the number
+of {\em accepted} events in the denominator.
+
+A similar matrix of values is used after the fit when calculating
+observables.  In this ``raw normalization integral'' the $M_a$ above
+are replaced with $M$, the total number of generated phase-space events.
+
+For a more complete description, see ``Formulas for Partial-Wave Analysis
+-- Version II'', BNL-QGS-93-05.
+
+\section{The [[integral]] class interface}
+
+The [[integral]] class is a representation of the normalization integrals
+described in section~\ref{intro}. This section describes the public
+interface to the [[integral]] class.
+
+<<public declarations>>=
+    <<constructors>>
+    <<mutators>>
+    <<inspectors>>
+    <<i/o methods>>
+
+@
+\subsection{Constructors, {\em etc.} }
+In addition to the truly required methods such as default constructor
+and destructor, there are a few others that should be ``always'' included
+to help avoid later problems with memory management--a copy constructor
+and an assignment operator.
+
+\vspace{0.5cm}
+
+\meth integral::integral()
+The default constructor initializes an empty [[integral]]
+<<constructors>>=
+        integral();
+
+@
+\meth integral::integral(char**)
+Passing the constructor a list of {\em wavenames} will initialize an
+empty [[integral]] and set up a list of {\em wavenames} to include in
+the integration.  It will look for the amplitudes for each wave in a
+file with the same name in the current directory.
+<<constructors>>=
+        integral(char**);
+
+@
+\meth{integral::integral(const integral\&)}
+The copy constructor makes an [[integral]] which is a copy of its
+argument.
+<<constructors>>=
+        integral(const integral&);
+
+@
+\meth integral::\~{}integral()
+The destructor removes all resources which have been allocated for an
+[[integral]].
+<<constructors>>=
+        ~integral();
+
+@
+\meth{integral::operator=(const integral\&)}
+The assignment operator assigns its right hand argument to its left and
+returns a reference to the left hand argument after the assignment.
+<<constructors>>=
+        integral& operator=(const integral&);
+
+@
+\subsection{Mutators}
+
+Methods which change the state of the [[integral]] are collectively
+called mutators.
+
+\vspace{0.5cm}
+
+@
+\meth integral::integrate()
+[[integrate]] does the actual integration. It looks for files in the
+current directory, the list of which has been previously set by either
+the [[integrate(char**)]] constructor or the [[files(...)]] methods.
+The maximum number of events to include in the [[integral]] can be set
+using [[max(n)]], below.  It returns a reference to itself after the
+integration.
+<<mutators>>=
+        integral& integrate();
+
+@
+\meth integral::files(char**)
+Sets the list of files to be included in the integration. The argument
+is a pointer to an array of [[c]] strings, this will probably be useful
+for passing [[argv]]. Calling [[files(...)]] {\em overwrites } any values
+from previous calls or the constructor.  It returns a reference to itself.
+<<mutators>>=
+        integral& files(char**);
+
+@
+\meth{integral::files(list$<$string$>$)}
+This function also sets the list of files to be included in the
+integration, this time in the form of a {\sc stl} list of strings.
+Calling [[files(...)]] {\em overwrites } any values from previous calls
+or the constructor.  It returns a reference to itself.
+<<mutators>>=
+        integral& files(std::list<std::string>);
+
+@
+\meth{integral::renormalize(int n)}
+It is sometimes useful to lie about how many monte-carlo events were
+used in the integration.  Since we do not use the statistical error of
+the integrals anywhere in the likelihood or observables calculations,
+the rule of thumb from lore is ``use 10$\times$ the number of accepted
+monte-carlo events as you have data events''.  This is an effort to reduce
+the statistical error on the integrals to a level that is ignorable
+compared to the data.  A low average acceptance however means that for
+an accepted monte-carlo data set 10$\times$ the data you could need a raw
+set $ > 100\times $, which can become costly in CPU cycles and file size.
+In such cases it is useful to truncate the raw data set to $\sim$ the
+size of the accepted (with a random sampling).  If the assumption that
+the errors on the accepted integrals are small is correct,  the errors
+on the raw integrals should be still be OK.
+
+To get the total average acceptance correct, however we must renormalize
+the integrals, {\em i.e.}, lie about how many events were used.
+[[renormalize(n)]] forces the integral to believe that [[n]] events were
+used in the integration.  It returns a reference to itself.
+<<mutators>>=
+        integral& renormalize(int n);
+
+@
+\meth{integral::max(int m)}
+Sets the maximum number of amplitudes to read from the amplitude files
+in the integration.  It returns a reference to itself.
+<<mutators>>=
+        integral& max(int m);
+
+@
+\meth{integral::events(int n)}
+Sets the [[integral]]s idea of the number of events used in the
+integration.  This does {\sc not} set the number of events actually used,
+only the assumed number.  It returns a reference to itself.
+<<mutators>>=
+        integral& events(int n);
+
+@
+\meth{integral::el(string, string)}
+[[el(s1, s2)]] returns a reference to the integral element for waves
+s1,s2. This number is is the ``unnormalized'' integral for these waves,
+{\em i.e.}, $\sum_i \psi_{s1}\psi_{s2}^\ast$ {\em not} $\frac{1}{N}
+\sum_i \psi_{s1}\psi_{s2}^\ast$.  Since [[el]] returns a reference,
+it may be assigned to.
+<<mutators>>=
+        std::complex<double>& el(std::string, std::string);
+
+
+@
+\subsection{Inspectors}
+
+Methods which do not change the state of the [[integral]], but return
+information about its state, are collectively called inspectors.
+
+\vspace{0.5cm}
+
+@
+\meth integral::nevents()
+[[files()]] returns a list of strings containing the names of the waves
+that were included (or are scheduled for inclusion) in the integration.
+<<inspectors>>=
+        int nevents() const;
+@
+\meth integral::files()
+[[files()]] returns a list of strings containing the names of the waves
+that were included (or are scheduled for inclusion) in the integration.
+<<inspectors>>=
+        std::list<std::string> files() const;
+
+@
+\meth integral::files\_c\_str()
+[[files_c_str()]] returns an array of [[c]] strings containing the waves
+that were included (or are scheduled for inclusion) in the integration.
+The memory for these strings is allocated by the method, and the user
+is responsible for freeing it.
+<<inspectors>>=
+        char** files_c_str() const;
+
+@
+\meth{integral::val(string s1,string s2)}
+[[val(s1, s2)]] returns the integral element for waves s1,s2. This
+number is is the ``normalized'' integral for these waves, {\em i.e.},
+$\frac{1}{N} \sum_i \psi_{s1}\psi_{s2}^\ast$.
+<<inspectors>>=
+        std::complex<double> val(std::string, std::string);
+
+@
+\meth{integral::get(char** flist)}
+[[get(char** flist)]] returns an [[integral]] containing only the waves
+listed as its argument.  This list must be a subset of the waves used
+during integration, as returned by [[files_c_str()]]
+<<inspectors>>=
+        integral get(char** flist);
+
+@
+\meth{integral::get(list$<$string$>$ flist)}
+[[get(list<string> flist)]] returns an [[integral]] containing only the
+waves listed as its argument.  This list must be a subset of the waves
+used during integration, as returned by [[files()]].  The [[integral]]
+is returned with the waves in the same order as in the argument [[flist]].
+This means the ordering of the waves in the [[integral]] can be rearranged
+by giving an [[flist]] with the same waves as the original, but in a
+new order.
+<<inspectors>>=
+        integral get(std::list<std::string> flist);
+
+@
+\meth{integral::index(string s)}
+Returns the index into the [[matrix]] returned by [[mat()]] that
+corresponds to the wave specified by [[s]], where s is a [[string]].
+<<inspectors>>=
+        int index(std::string s);
+
+@
+\meth{integral::index(char* s)}
+Returns the index into the [[matrix]] returned by [[mat()]] that
+corresponds to the wave specified by [[s]], where s is a [[c]] string.
+<<inspectors>>=
+        int index(char* s);
+
+@
+\meth integral::mat()
+[[mat()]] returns the normalization integral as a matrix of complex
+numbers.  The elements may be accessed by using the [[index(s)]]
+methods above. This matrix is normalized, {\em i.e.}, $M_{\alpha
+\alpha'} = \frac{1}{N}\sum_i {}^\alpha\psi_i {}^{\alpha'}\psi_i^\ast $.
+The ordering of the waves in the [[matrix]] returned is the same as that
+returned by the [[files()]] method, or can be determined using the above
+[[index(...)]] methods.
+<<inspectors>>=
+        matrix<std::complex<double> > mat();
+
+
+@
+\subsection{I/O Methods}
+
+Input and output is currently in ASCII format.
+
+\vspace{0.5cm}
+
+@
+\meth integral::print()
+Writes an ASCII representation of the [[integral]] to an [[ostream]].
+The default [[ostream]] is [[cout]], but may be changed with its optional
+argument.
+<<i/o methods>>=
+        const integral& print(std::ostream& os = std::cout) const;
+
+@
+\meth integral::print\_events()
+Writes an ASCII representation of the number of events for [[integral]]
+to an [[ostream]]. The default [[ostream]] is [[cout]], but may be changed
+with its optional argument.
+<<i/o methods>>=
+        const integral& print_events(std::ostream& os = std::cout) const;
+
+@
+\meth integral::scan()
+Reads an ASCII representation of the [[integral]] from an [[istream]].
+The default [[istream]] is [[cin]], but may be changed with its optional
+argument.
+<<i/o methods>>=
+        integral& scan(std::istream& is = std::cin);
+
+
+@
+\section{The Private Integral}
+
+Privately, the [[integral]] has a [[matrix]] of complex numbers,
+[[_sum]], which keeps track of the sum $ \sum \psi \psi^\ast $.  This is
+an ``unnormalized'' sum in the sense that it has not been divided by
+[[_nevents]].  When returning value(s) to be used as integral results,
+the normalization must be done at that time.
+
+Since the integral may have many more waves included in it that
+will be used at the fit time, for instance, there must be a way to
+extract elements by the names of the waves (or files) which were used.
+This information is stored in the [[_index]], which provides a map from
+strings (names) to integers (index in matrix).
+
+[[_nwaves]] is used mostly internally to help when allocating memory
+for [[_sum]], {\em etc,} and is simply the number of waves included in
+[[_sum]] at the time of integration.  [[_maxEvents]] provides a way to
+limit the number of events used in the integration.
+
+<<integral.h>>=
+#ifndef INTEGRAL_H
+#define INTEGRAL_H
+
+#include <complex>
+#include <iostream>
+#include <string>
+#include <list>
+#include <map>
+#include <cstdlib>
+#include <matrix.h>
+
+class integral {
+    private:
+        matrix<std::complex<double> > _sum;
+        std::map<std::string, int> _index;
+        int _nwaves;
+        int _nevents;
+        int _maxEvents;
+    public:
+        <<public declarations>>
+};
+
+#endif
+
+@
+\section{Implementation of the methods}
+
+The code for [[integrals]] methods is in [[integral.cc]]
+ 
+<<integral.cc>>=
+#include <integral.h>
+    using std::ifstream;
+    using std::istream;
+    using std::ostream;
+    using std::cin;
+    using std::cout;
+    using std::cerr;
+    using std::endl;
+    using std::flush;
+    using std::string;
+    using std::complex;
+    using std::list;
+    using std::map;
+
+    <<constructor code>>
+    <<mutator code>>
+    <<inspector code>>
+    <<io code>>
+
+@
+\subsection{Constructors}
+
+The default constructor uses the constructors for [[matrix]]
+and [[map<string,int>]] to initialize [[_index]] and [[_sum]].
+
+<<constructor code>>=
+integral::integral() {
+    this->_nwaves = 0;
+    this->_nevents = 0;
+    this->_maxEvents = 0;
+}
+
+@ 
+If the constructor is supplied with a list of file(wave)-names, it
+initializes the map [[_index]] and uses the count of names [[_nwaves]]
+to dimension the matrix [[_sum]].
+
+<<constructor code>>=
+integral::integral(char** files) {
+    this->_nwaves = 0;
+    this->_nevents = 0;
+    this->_maxEvents = 0;
+    this->files(files);
+    this->_sum = matrix<complex<double> >(this->_nwaves, this->_nwaves);    
+}
+
+@
+The copy constructor initializes itself from the argument reference.
+
+<<constructor code>>=
+integral::integral(const integral& ni) {
+    this->_nwaves = ni._nwaves;
+    this->_nevents = ni._nevents;
+    this->_maxEvents = ni._maxEvents;
+    this->_index = ni._index;
+    this->_sum = ni._sum;
+}
+
+@
+The destructor doesn't need to do anything since we do no explicit
+allocation of memory with [[malloc(...)]] or [[new]].
+
+<<constructor code>>=
+integral::~integral() {
+    ;
+}
+
+@
+The assignment operator looks just like the copy constructor, except
+we return [[*this]].
+
+<<constructor code>>=
+integral& integral::operator=(const integral& ni) {
+    this->_nwaves = ni._nwaves;
+    this->_nevents = ni._nevents;
+    this->_maxEvents = ni._maxEvents;
+    this->_index = ni._index;
+    this->_sum = ni._sum;
+    return *this;
+}
+
+@
+\subsection{Mutators}
+
+The [[integrate()]] method does most of the interesting work for this
+class.  The scheme is a simple one: open the files and read amplitudes
+an event at a time, adding them to the sum [[_sum]].  We loop over all
+events unless [[_maxEvents]] is set.
+
+The input files are kept in an array of [[ifstream]]s, which are allocated
+with a [[new [] ]] here, as are the amplitudes for each event. Since the
+amplitudes will be read in an event at a time we just need to allocate
+[[_nwaves]] complex numbers. Before leaving this routine we call
+[[delete [] ]] for both of these arrays.
+
+<<mutator code>>=
+integral& integral::integrate() {
+    if (this->_nwaves == 0) throw "no waves";
+
+    int nRead = 0;
+    ifstream *ampfile = new ifstream[this->_nwaves];
+    complex<double> *amps = new complex<double>[this->_nwaves];
+
+    <<open files>>
+
+    int eof = 0;
+    while (!eof && _maxEvents?nRead<_maxEvents:1) {
+        <<read amps>>
+        <<add to sum>>
+    }
+
+    delete [] ampfile;
+    delete [] amps;
+    return *this;
+}
+
+@
+We then loop
+over [[ampName]]s in the index and try to open files with the same
+names in the current directory. The [[istream]]s are stored in the array
+according to the index stored in [[_index]].  If we cannot open a file,
+print an message to [[cerr]] and throw an exception [[file not found]].
+
+<<open files>>=
+    string filename;
+    int fileindex;
+
+    map<string, int>::iterator ampName = this->_index.begin();
+    while( ampName != this->_index.end() ) {
+        filename = (*ampName).first;
+        fileindex = (*ampName).second;
+        ampfile[fileindex].open((filename).c_str());
+        if(!ampfile[fileindex]) {
+            cerr << "error: cannot open " << filename << endl;
+            throw "file not found";
+        }
+        ampName++;
+    }
+
+@
+Amplitudes are read from all files an event at a time, and are
+stored in an array of [[complex<double>]]s.  This array is again
+indexed by the integer corresponding to the filename that is stored in
+[[_index]]. Currently, if we find an end of file, just break out of loops.
+We should really check that all files end at the same time.
+
+<<read amps>>=
+    int index;
+    map<string, int>::iterator ampName = this->_index.begin();
+    while( ampName != this->_index.end() ) {
+        index = (*ampName).second;
+        ampfile[index].read((char*) &amps[index], sizeof(complex<double>));
+        if ( (eof = ampfile[index].eof()) ) break;
+        ampName++;
+    }
+    if (eof) break;
+    this->_nevents++;
+	nRead++;
+
+    if ( !(nRead % 100) ) cerr << nRead << "\r" << flush;
+
+@
+Now we have read a set of amplitudes for one event, add $ \psi_i
+\psi_j^\ast $ to each element in [[_sum]].  Indices into this matrix
+are also given by [[_index]], so we double loop over this map and add
+to the sum.
+
+<<add to sum>>=
+    int i, j;
+    map<string, int>::iterator ampName_i = this->_index.begin();
+    while( ampName_i != this->_index.end() ) {
+        i = (*ampName_i).second;
+        map<string, int>::iterator ampName_j = this->_index.begin();
+        while( ampName_j != this->_index.end() ) {
+            j = (*ampName_j).second;
+            this->_sum.el(i,j) += amps[i]*conj(amps[j]);
+            ampName_j++;
+        }
+        ampName_i++;
+    }
+
+@
+The [[files(list<string>)]] method sets up the map [[_index]] to relate
+names to integer indices for the arrays.  In the process it also keeps
+track of the total number of waves in this integral in [[_nwaves]].
+The matrix is constructed here with the correct dimensions after the
+index is initialized.
+
+If [[files(...)]] is called with an array of [[c]] strings ([[char**]]),
+they are just pushed onto a list and [[files(list<string>)]] is called.
+
+<<mutator code>>=
+integral& integral::files(list<string> files) {
+    list<string>::iterator file = files.begin();
+    while(file != files.end()) {
+        this->_index[*file] = this->_nwaves++;
+        file++;
+    }
+    this->_sum = matrix<complex<double> >(this->_nwaves, this->_nwaves);    
+    return *this;
+}
+
+integral& integral::files(char** files) {
+    list<string> slist;
+    while(*files) {
+        slist.push_back(*files);
+        files++;
+    }
+    this->files(slist);
+    return *this;
+}
+
+@
+The values stored in [[_sum]] are ``unnormalized'', but [[mat()]] and [[val()]] should return the same values after renormalizing, so
+\begin{eqnarray}
+{1\over{M'}}\left(\Sigma'\right) & = & {1\over{M}}\left(\Sigma\right) \\
+\Sigma' & = & {M'\over{M}}\Sigma
+\end{eqnarray}
+and therefore, to renormalize, [[_nevents]] $\rightarrow$ [[n]] and $\Sigma \rightarrow {[[n]]\over[[_nevents]]}\Sigma$.
+<<mutator code>>=
+    integral& integral::renormalize(int n) {
+        _sum = ((complex<double>) ((double) n/ (double) _nevents))*_sum;
+        _nevents = n;
+        return *this;
+    }
+
+@
+[[max(m)]] and [[events(n)]] are trivial methods--simply set the
+corresponding data members and return [[*this]].
+<<mutator code>>=
+    integral& integral::max(int m) { 
+        this->_maxEvents = m; 
+        return *this; 
+    }
+
+    integral& integral::events(int n) { 
+        this->_nevents = n; 
+        return *this; 
+    }
+
+@
+[[el]] uses [[_index]] to pull out the correct element of [[_sum]]
+by {\em name}.
+
+This method gets called many times by other members of [[integral]],
+so we do {\em not} check whether the string indices are ``in bounds''.
+This should be done by the calling routine whenever necessary.
+
+<<mutator code>>=
+complex<double>& integral::el(string iname, string jname) {
+    return (_sum.el(_index[iname],_index[jname]));
+}
+
+@
+\subsection{Inspectors}
+
+[[nevents()]] returns the number of events integrated over when
+calculating the integral.
+
+<<inspector code>>=
+int integral::nevents() const {
+	return _nevents;
+}
+
+@
+[[files()]] loops over the map [[_index]] and fills a list of strings
+with the filenames.  The list of strings is then returned.
+
+The [[files_c_str()]] variant returns the same information stuffed into
+a [[c]] array.  The memory allocated for the [[c]] strings is never
+[[free]]d by this class, it is the callers responsibility to free it.
+
+<<inspector code>>=
+list<string> integral::files() const {
+    list<string> fileList;
+    map<string, int>::const_iterator ampName = this->_index.begin();
+    while( ampName != this->_index.end() ) {
+        fileList.push_back((*ampName).first);
+        ampName++;
+    }
+    return fileList;
+}
+
+char** integral::files_c_str() const {
+    string fname;
+    int i = 0;
+    char** fileList = (char**) malloc((_nwaves+1)*sizeof(char*));
+
+    map<string, int>::const_iterator ampName = this->_index.begin();
+    while( ampName != this->_index.end() ) {
+        fname = (*ampName).first;
+        fileList[i] = (char*) malloc ((fname.size()+1)*sizeof(char));
+        strcpy(fileList[i],fname.c_str());
+        ampName++; i++;
+    }
+    fileList[i] = NULL;
+    return fileList;
+}
+
+@
+[[val]] just needs to divide the value returned by [[el]] by [[_nevents]]
+to get the integral value, indexed by {\em name}.
+
+We check that [[iname]] and [[jname]] are ``in bounds'' here but not in
+[[el(...)]] for efficiency reasons, since [[el(...)]] gets called many
+more times by member functions.
+
+<<inspector code>>=
+complex<double> integral::val(string iname, string jname) {
+
+    if( _index.find(iname) == _index.end() ) {
+        cerr << "error: " << iname << " not in integral" << endl;
+        throw "bad wave access";
+    }
+    if( _index.find(jname) == _index.end() ) {
+        cerr << "error: " << jname << " not in integral" << endl;
+        throw "bad wave access";
+    }
+
+    return (this->el(iname,jname)*(1.0/(float)_nevents));
+}
+
+@
+[[get(...)]] loops over names in the argument list and creates a
+sub-matrix from [[_sum]].  We create a local [[integral]], initialize
+it with the argument list, and pull put the appropriate elements from
+[[_sum]] using [[el(...)]] so we can access them by name.  Finally,
+we return the local copy.
+
+Since [[get(...)]] calls [[el(...)]] and not [[val(...)]] we check that
+the names in flist are all ``in bounds''--[[el(...)]] does no checking.
+
+Again, we also provide a wrapper method which packs the [[c]] style
+strings into a list of strings before calling [[get(list<string> flist)]].
+
+<<inspector code>>=
+integral integral::get(list<string> flist) {
+    // need to check that all requested files are in list
+    list<string>::iterator iname;
+    list<string>::iterator jname;
+    integral ret;
+
+    iname = flist.begin();
+    while (iname != flist.end()) {
+        if( _index.find(*iname) == _index.end() ) {
+            cerr << "error: " << *iname << " not in integral" << endl;
+            throw "bad wave access";
+        }
+        iname++;
+    }
+
+    ret.files(flist);
+    ret.events(_nevents);
+    iname = flist.begin();
+    while (iname != flist.end()) {
+        jname = flist.begin();
+        while (jname != flist.end()) {
+            ret.el(*iname,*jname) = this->el(*iname,*jname);
+            jname++;
+        }
+        iname++;
+    }
+    return ret;
+}
+
+integral integral::get(char** flist) {
+    list<string> slist;
+    while(*flist) {
+        slist.push_back(*flist);
+        flist++;
+    }
+    return this->get(slist);
+}
+
+@
+[[index]] needs only to return the integer stored in the map [[_index]]
+associated with the string [[s]].
+<<inspector code>>=
+    int integral::index(string s) {
+        return _index[s];
+    }
+
+    int integral::index(char* s) {
+        return _index[s];
+    }
+
+@
+[[mat()]] must ``normalize'' the matrix [[_sum]] before returning it.
+<<inspector code>>=
+    matrix<complex<double> > integral::mat() {
+        return ((complex<double>) (1.0/((double) _nevents)))*_sum;
+    }
+
+@
+\subsection{I/O code}
+
+[[print(...)]] writes to the [[ostream]] [[os]], which can be set as an
+argument.  the matrix [[_sum]] uses the matrix output operator but for the
+map [[_index]] we do it by hand, writing first the size of the map, then
+the name [[(*ampName).first]] and then the index [[(*ampName).second]]
+in a loop.
+
+<<io code>>=
+const integral& integral::print(ostream& os) const {
+    
+    os << _nwaves << endl;
+    os << _nevents << endl;
+    os << _sum;
+    os << _index.size() << endl;
+    map<string, int>::const_iterator ampName = this->_index.begin();
+    while( ampName != _index.end() ) {
+        os << (*ampName).first << " " << (*ampName).second << endl;
+        ampName++;
+    }
+
+    return *this;
+}
+
+<<io code>>=
+const integral& integral::print_events(ostream& os) const {
+
+    os << _nevents << endl;
+    return *this;
+}
+
+@
+[[scan(...)]] reads from the [[istream]] [[is]], which can be set as
+an argument.  the matrix [[_sum]] uses the matrix input operator but
+for the map [[_index]] we do it by hand, reading first the size of the
+list, then looping for that length reading the name into [[name]],
+the index into [[index]], and then putting those values into the map.
+
+<<io code>>=
+integral& integral::scan(istream& is) {
+    int indexSize = 0, index = 0;
+    string name;
+
+    is >> _nwaves;
+    is >> _nevents;
+    is >> _sum;
+    is >> indexSize;
+    while(indexSize--) {
+        is >> name >> index;
+        _index[name] = index;
+    }
+    return *this;
+}
+

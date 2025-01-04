@@ -1,0 +1,582 @@
+
+@
+
+The [[keyfile]] class represents the prgram interface to the users program, or {\em keyfile}.  It must at a minimum contain a list of waves in the file.
+
+<<keyfile.h>>=
+
+#include <string>
+#include <list>
+#include <cstdio>
+#include <wave.h>
+
+
+class keyfile {
+	private:
+		std::list<wave> _atomicWaves;
+		std::string _filename;
+		FILE* _file;
+	public:
+		keyfile();
+		keyfile(std::string filename);
+		~keyfile();
+		keyfile(const keyfile&);
+		keyfile operator=(const keyfile&);
+		
+		keyfile open(const std::string filename);
+		keyfile run(event& e);
+		keyfile run();
+		void rewind();
+		void close();
+		FILE* file();
+		
+		wave addWave(const wave w);
+		wave operator[](int index) const;
+		int nWaves() const;
+};
+
+keyfile readKey (keyfile);
+
+<<keyfile.cc>>=
+#include <keyfile.h>
+using std::string;
+using std::list;
+
+@
+These [[extern]]s are used by the lexer. [[keyin]] is the input file
+and [[keylex]] is the lexer itself.
+
+<<keyfile.cc>>=
+extern particleDataTable table;
+extern FILE* keyin;
+extern char* fname;
+extern "C++" int keylex();
+extern "C++" int keyparse();
+
+
+keyfile::keyfile() {
+	_filename = "";
+}
+
+keyfile::keyfile(string filename) {
+	_filename = filename;
+	fname = (char*) malloc( ((filename.length())+1)*sizeof(char));
+	strcpy(fname,filename.c_str());
+}
+
+keyfile::~keyfile() {
+	;
+}
+
+keyfile::keyfile(const keyfile& kf) {
+	this->_atomicWaves = kf._atomicWaves;
+	this->_filename = kf._filename;
+	this->_file = kf._file;
+}
+
+keyfile keyfile::operator=(const keyfile& kf) {
+	this->_atomicWaves = kf._atomicWaves;
+	this->_filename = kf._filename;
+	this->_file = kf._file;
+	return *this;
+}
+
+keyfile keyfile::open(const string filename) {
+	fname = (char*) malloc( ((filename.length())+1)*sizeof(char));
+	strcpy(fname,filename.c_str());
+	this->_file = fopen(fname,"r");
+	return *this;
+}
+
+
+keyfile keyfile::run() {
+	keyin = this->_file;
+	keyparse();
+	return *this;
+}
+
+event e;
+keyfile keyfile::run(event& ev) {
+	e = ev; 
+	keyin = this->_file;
+	keyparse();
+	return *this;
+}
+
+void keyfile::rewind() {
+	fseek(this->_file,0L,SEEK_SET);
+}
+
+void keyfile::close() {
+	;
+}
+
+FILE* keyfile::file() {
+	return this->_file;
+}
+		
+wave keyfile::addWave(const wave w) {
+	this->_atomicWaves.push_back(w);
+	return w;
+}
+
+wave keyfile::operator[](int index) const {
+	int i = 0;
+	list<wave>::const_iterator w;
+	w = this->_atomicWaves.begin();
+	while(w != this->_atomicWaves.end() ) {
+		if ( i == index ) {
+			return *w;
+		}
+		w++; i++;
+	}
+	return *w;
+}
+
+int keyfile::nWaves() const {
+	return this->_atomicWaves.size();
+}
+
+<<keyParse.yy>>=
+%{
+#include <iostream>
+#include <particle.h>
+#include <wave.h>
+#include <keyfile.h>
+#include <massDep.h>
+#define stoi(x) strcmp((x),"+")?-1:1
+
+using std::string;
+using std::complex;
+using std::cout;
+using std::cerr;
+using std::endl;
+
+int yylex(void);
+void yyerror(char* s);
+#define YYDEBUG 1
+
+int nwave;
+int debug = 0;
+string mode;
+
+wave wv;
+extern int lineno;
+extern particleDataTable PDGtable;
+extern event e;
+complex<double> amp;
+
+%}
+
+%union{
+	int num;
+	std::complex<double>* Cnum;
+	double Fnum;
+	char string[100];
+	decay* Decay;
+	particle* Particle;
+}
+
+%token <num> INT
+%token <Fnum> FLOAT
+%token <Cnum> COMPLEX
+%token <string> SIGN
+%token <string> STRING
+%token <string> PARTICLENAME
+%token <string> DEBUG
+%token <string> CHANNEL
+%token <string> MODE
+%token <string> MASSDEP
+%token <string> HELICITY
+
+%type <Decay> decay
+%type <Particle> pstate
+%type <Particle> particle
+%type <Particle> particleID
+%type <Particle> particleCharge
+%type <Cnum> wave
+%type <Cnum> waveexp
+%type <Cnum> complex
+%left '+' '-'
+%left '*'
+
+%%
+input:    /* empty */
+	| input statement 
+	;
+
+statement:   DEBUG '=' INT ';' {
+		debug = $3;
+	}
+	| CHANNEL '=' STRING ';'{
+		wv.channel($3);
+	}
+	| MODE  '=' STRING ';' {
+		mode = $3;
+	}
+	| waveexp ';' {
+		if (mode == "binary") {
+			cout.write((char*) $1,sizeof(complex<double>));
+		}
+		else {
+			cout << "Mass = " << ~(wv.get4P()) << "\t";
+			if ( wv.channel() == "t" ) {
+				cout << "t = " << (e.beam().get4P()-wv.get4P()).lenSq() << "\t";
+			}
+			cout << "Amp = " <<  *$1 << endl;
+		}
+		delete $1;
+	}
+	;
+
+waveexp: wave {
+		$$ = new complex<double>(*$1);
+		delete($1);
+	}
+	| '(' waveexp ')' {
+		$$ = new complex<double>(*$2);
+		if (debug) {
+			cout << " ( " << *$2 << " ) = " << *$$ << endl;
+		}
+		delete($2);
+	}
+	|
+	waveexp '+' waveexp {
+		$$ = new complex<double>(*$1 + *$3);
+		if (debug) {
+			cout << *$1 << " + " << *$3 << " = " << *$$ << endl;
+		}
+		delete($1);
+		delete($3);
+	}
+	|
+	waveexp '-' waveexp {
+		$$ = new complex<double>(*$1 - *$3);
+		if (debug) {
+			cout << *$1 << " - " << *$3 << " = " << *$$ << endl;
+		}
+		delete($1);
+		delete($3);
+	}
+	|
+	FLOAT '*' waveexp {
+		$$ = new complex<double>($1 * *$3);
+		if (debug) {
+			cout << $1 << " * " << *$3 << " = " << *$$ << endl;
+		}
+		delete($3);
+	}
+	|
+	complex '*' waveexp {
+		$$ = new complex<double>(*$1 * *$3);
+		if (debug) {
+			cout << *$1 << " * " << *$3 << " = " << *$$ << endl;
+		}
+		delete($1);
+		delete($3);
+	}
+	;
+
+wave:   resonance decay {
+		wv.setDecay(*$2);
+		delete $2;
+		if (debug) {
+			cout << "@@Found a wave" << endl;
+			wv.print();
+			cout << "@@Filling wave" << endl;
+		}
+		wv.fill(e,debug);
+		if (debug) {
+			cout << "@@Wave before boosts" << endl;
+			wv.print();
+		}
+		wv.setupFrames(debug);
+		if (debug) {
+			cout << "@@Wave after boosts" << endl;
+			wv.print();
+		}
+		amp  = wv.decayAmp(debug);
+		$$ = new complex<double>(amp);
+		nwave++;
+	}
+	;
+
+resonance:  quantum_nums {
+            }
+            ;
+
+quantum_nums: quantum_num quantum_num quantum_num {
+	}
+	;
+
+quantum_num: STRING '=' INT {
+		if(!strcmp($1,"J")) wv.setJ($3);
+		if(!strcmp($1,"M")) wv.setM($3);
+		if(!strcmp($1,"P")) wv.setP($3);
+	}
+	;
+
+decay:      '{' particle particle INT '}'  {
+		decay* d = new decay;
+		d->addChild(*$2);
+		d->addChild(*$3);
+		delete $2;
+		delete $3;
+ 		d->setL($4);
+		d->calculateS();
+		$$ = d;
+	}
+	| '{' particle particle STRING '=' INT '}'  {
+		decay* d = new decay;
+		d->addChild(*$2);
+		d->addChild(*$3);
+		delete $2;
+		delete $3;
+		if(!strcmp($4,"l")) {
+			d->setL($6);
+		}
+		else {
+			cerr << "expecting \'l\' at line " << lineno << endl;
+			cerr << "found \'" << $4 << "\'" << endl;
+			exit(1);
+		}
+		d->calculateS();
+		$$ = d;
+	}
+	| '{' particle particle STRING '=' INT STRING '=' INT '}'  {
+		decay* d = new decay;
+		d->addChild(*$2);
+		d->addChild(*$3);
+		delete $2;
+		delete $3;
+		if(!strcmp($4,"l")) {
+			d->setL($6);
+		}
+		else {
+			cerr << "expecting \'l\' at line " << lineno << endl;
+			cerr << "found \'" << $4 << "\'" << endl;
+			exit(1);
+		}
+		if(!strcmp($7,"s")) {
+			d->setS($9);
+		}
+		else {
+			cerr << "expecting \'l\' at line " << lineno << endl;
+			cerr << "found \'" << $7 << "\'" << endl;
+			exit(1);
+		}
+		$$ = d;
+	}
+	| '{' particle particle INT INT '}'  {
+		decay* d = new decay;
+		d->addChild(*$2);
+		d->addChild(*$3);
+		delete $2;
+		delete $3;
+ 		d->setL($4);
+		d->setS($5);
+		$$ = d;
+	}
+	| '{' particle particle particle INT '}'  {
+		decay* d = new decay;
+		d->addChild(*$2);
+		d->addChild(*$3);
+		d->addChild(*$4);
+		delete $2;
+		delete $3;
+		delete $4;
+ 		d->setL($5);
+		d->calculateS();
+		$$ = d;
+	}
+	;
+
+particle:   pstate {
+		$$ = $1;
+	}
+	| pstate decay {
+		$1->setDecay(*$2);
+		massDep* bw = new breitWigner();
+		$1->setMassDep(bw);
+		delete $2;
+		$$ = $1;
+	}
+	| pstate decay MASSDEP '=' STRING{
+		$1->setDecay(*$2);
+		massDep* md;
+		if (!strcmp($5,"bw")) {
+			md = new breitWigner();
+		}
+		else if (!strcmp($5,"amp")) {
+			md = new AMP_M();
+		}
+		else if (!strcmp($5,"amp_ves")) {
+			md = new AMP_ves();
+		}
+		else if (!strcmp($5,"flat")) {
+			md = new flat();
+		}
+		else {
+			cerr << "unknown mass dependence: " << $5;
+			cerr << " at line " << lineno << endl;
+			exit(1);
+		}
+		$1->setMassDep(md);
+		delete $2;
+		$$ = $1;
+	}
+	;
+
+pstate:  particleID {
+		$$ = $1;
+	}
+	| particleID HELICITY '=' INT {
+		$1->addHelicity($4);
+		$$ = $1;
+	}
+	;
+	
+particleID:  particleCharge {
+		$$ = $1;
+	}
+	| particleCharge '[' INT ']' {
+		$1->Index($3);
+		$$ = $1;
+	}
+	;
+	
+particleCharge: PARTICLENAME {
+		particle* p = new particle(PDGtable.get($1),0);
+		$$ = p;
+	}
+	| PARTICLENAME '+' {
+		particle* p = new particle(PDGtable.get($1),+1);
+		$$ = p;
+	}
+	| PARTICLENAME '-' {
+		particle* p = new particle(PDGtable.get($1),-1);
+		$$ = p;
+	}
+	| PARTICLENAME '0' {
+		particle* p = new particle(PDGtable.get($1),0);
+		$$ = p;
+	}
+	;
+
+complex:	'(' FLOAT ',' FLOAT ')' {
+		$$ = new complex<double>($2,$4);
+	}
+
+%%
+
+@
+Some options are set at the top of the [[lex]] specification:
+\begin{itemize}
+\item option prefix=``key'' to allow multiple lexers in program
+\item option noyywrap since we are using the prefix ``key'' on all our flex routines and we cannot change yywrap to keywrap. (it is in [[libfl.a]])
+\item option nounput to get rid of compiler error: \hfil\break
+	[[lex.wave.c:1046: warning: `void yyunput(int, char *)' defined but not used]]
+\end{itemize}
+
+<<keyScan.ll>>=
+%option prefix="key"
+%option noyywrap
+%option nounput
+%{
+
+#include <iostream>
+#include <particle.h>
+#include <keyParse.h>
+
+using std::cerr;
+using std::endl;
+
+#undef YY_INPUT
+#define YY_INPUT(buf,result,max_size)\
+{\
+	int c = getc(yyin);\
+	result = (c==EOF)?YY_NULL:(buf[0]=c,1);\
+}
+
+extern particleDataTable PDGtable;
+particleData p;
+int i;
+int lineno=1;
+char* fname;
+
+%}
+
+string [a-zA-Z][a-zA-Z0-9()_']*
+float [-+]?[0-9]?"."[0-9]*
+comment #.*$
+
+%%
+
+[ \t]+ 	{
+		;
+	}
+	
+{comment} 	{
+		;
+	}
+	
+[-+]?[0-9][0-9]*	{
+		keylval.num = atoi(keytext);
+		return (INT);
+	}
+
+{float}	{
+		keylval.Fnum = atof(keytext);
+		return (FLOAT);
+	}
+
+debug	{
+		return(DEBUG);
+	}
+
+channel	{
+		return(CHANNEL);
+	}
+
+mode	{
+		return(MODE);
+	}
+
+h|(helicity)	{
+		return(HELICITY);
+	}
+
+(md)|(massdep)	{
+		return(MASSDEP);
+	}
+
+{string}	{
+		sscanf(keytext,"%s",keylval.string);
+		p = PDGtable.get(keytext);
+		if (p.Name() != "") {
+			return (PARTICLENAME);
+		}
+		else {
+			return (STRING);
+		}
+	}
+
+\n	{
+		lineno++;
+	}
+
+.	{
+		return ((int) keytext[0]);
+	}
+
+@<<EOF>>	{
+		yyterminate();
+	}
+%%
+
+<<keyScan.ll>>=
+
+void keyerror(char* s) {
+	cerr << fname << ":" << lineno << " " << s << " at " << keytext << endl;
+}
+
