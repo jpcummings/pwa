@@ -1,0 +1,61 @@
+@
+\def\nwnewline{\ifvmode\else\hfil\break\leavevmode\hbox{}\fi}
+\def\meth #1 {\noindent\vrule width2cm height0.1cm depth0cm\hskip 3mm {\bf#1} \h
+fill \break }
+
+\section{Converting event output formats}
+
+The output format for an [[event]] object has changed to allow more flexibility in specifying the beam and target.  The output format may be selected by an [[event]] method [[setIOVersion()]], and the default is to use the old format.  To help people wanting to use the new format without recreating all the events they already have in the old format, this conversion program will read and write in either format, selectable by command line flags.
+
+The program is trivial: set the input format, read an event, set the output format and write the event.  Since we do the read in the condition of the [[while]] setting the input format is the {\em last} thing done in the loop.
+
+<<event2event.cc>>=
+
+#include <iostream>
+#include <unistd.h>
+
+#include <event.h>
+
+int main(int argc, char** argv) {
+
+
+	PDGtable.initialize();
+
+	event e;
+	int inputversion=1, outputversion=2;
+
+	<<parse args>>
+
+	e.setIOVersion(inputversion);
+	while ( !(cin >> e).eof() ) {
+		e.setIOVersion(outputversion);
+		cout << e;
+		e.setIOVersion(inputversion);
+	}
+
+	return 0;
+}
+
+@
+Use the standard [[getopt]] to parse arguments.  Aside from a usage the only arguments at present are the version of the input format and the version of the output format.
+
+<<parse args>>=
+        char *pname = argv[0];
+        extern char *optarg;
+        int c;
+        while ((c = getopt(argc, argv, "i:o:h?")) != -1)
+                switch (c) {
+                case 'i':
+                        inputversion = atoi(optarg);
+                        break;
+                case 'o':
+                        outputversion = atoi(optarg);
+                        break;
+                case 'h':
+                case '?':
+			cerr << pname << " usage:" << endl;
+			cerr << pname << " -i version -o version < ifile > ofile" << endl;
+			cerr << "\tversion=1 or 2" << endl;
+                        exit(0);
+                       break;
+                }

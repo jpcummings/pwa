@@ -1,0 +1,55 @@
+This file is the README for libpp 
+
+Introduction
+============
+
+libpp.a is a library of objects that may be useful for doing particle
+physics analysis.  It includes both three and four vectors, real and
+complex matrices, a particle data table, particles, and events.
+
+Installation
+============
+
+To build libpp.a you must have noweb installed on your machine.  Noweb
+is a simple system for using literate programmings techniques.  It is
+available from:
+	http://www.cs.virginia.edu/~nr/noweb/intro.html
+and is fairly easy to install.
+
+libpp now uses gnu configure to try and guess values for system dependancies.
+To build the library, try:
+	1) ./configure
+	2) make
+	3) make install
+
+if you want to build for several platforms from the same source, make
+a subdirectory where you want the objects to be built and execute
+from there:
+
+	1) ../configure
+	2) make
+	3) make install
+
+The install step will place the library in /usr/local/lib and the header
+files in /usr/local/include.  If you want these put in a different
+place, use the --prefix option to configure to set $prefix to something
+other than its default /usr/local. Or you could use the --libdir and
+--includedir options to configure.  For example, a CLAS user may want
+to use:
+
+	1) ../configure --libdir=$CLAS_LIB --includedir=$CLAS_DEVEL/packages/inc_derived
+	2) make
+	3) make install
+
+to build the documentation use:
+    make dvi 
+
+to get the latex source for the documentation use:
+    make xxx.tex (where xxx is any name which corresponds to a xxx.nw file)
+and then latex the produced file twice to get references correct.
+or, to produce html documentation:
+    make xxx.html 
+
+if there are any problems please let me (John Cummings) know at:
+    cummij@rpi.edu
+

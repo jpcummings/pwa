@@ -1,0 +1,994 @@
+\section{Vectors}
+The first objects defined are vectors.  For efficiency, I only define
+three-- and four--vectors, although surely arbitrary dimensional
+vectors would be useful.
+
+\subsection{Three Vectors}
+
+Three vectors have basic algebraic
+operators:
+\begin{itemize}
+\item vector addition ($\vec{v}_1+\vec{v}_2$).
+\item vector unary minus ($-\vec{v}$, additive inverse)
+\item scalar multiplication  ($\alpha \vec{v}$)
+\end{itemize}
+Although addition \& unary minus are, mathematically speaking, sufficient, I combine
+them into a subtraction operator, along with some other useful
+operators:
+\begin{itemize}
+\item vector subtraction ($\vec{v}_1-\vec{v}_2$).
+\item vector multiplication ($\vec{v}_1 \cdot \vec{v}_2$)
+\item cross product  ($\vec{v}_1 \times \vec{v}_2$)
+\end{itemize}
+
+There are also methods used for programming, such as constructors, {\em etc.\/}
+\begin{itemize}
+\item assignment operators ([[=]], [[+=]], [[-=]], and [[*=]])
+\item constructor and copy constructor
+\item destructor
+\item input and output methods
+\item subscripting operator [[ [] ]] (this assumes a $(x,y,z)$ representation of the vector)
+\item comparison operators
+\end{itemize}
+The subscripting operators for [[threeVec]]'s use indices 0--2.  This might cause some confusion when supscripting the space components of a [[fourVec]] since 0 is the time-like component and the space-like components run 1--3.  {\em Be careful!}  There are inspector methods which do not change the value of the vector, but return some property of the object
+\begin{itemize}
+\item inspect components in polar or cartesian representation
+\item inspect length (and length squared)
+\end{itemize}
+
+\subsection{Four Vectors}
+
+Four--vectors, being vectors also, will look very similar to
+three--vectors.  Again they will have some basic mathematical
+operators:
+\begin{itemize}
+\item vector addition ($p_\mu+q_\mu$).
+\item vector unary minus ($-p_\mu$, additive inverse)
+\item scalar multiplication  ($\alpha p_\mu$)
+\item vector subtraction ($p_\mu-q_\mu$).
+\item vector multiplication ($p_\mu q^\mu$)
+\end{itemize}
+
+The ``programming'' methods (for lack of a better name) can be categorized
+\begin{itemize}
+\item assignment operators ([[=]], [[+=]], [[-=]], and [[*=]])
+\item constructor and copy constructor
+\item destructor
+\item input and output methods
+\item subscripting operator [[ [] ]] (this assumes a $(x_0,x_1,x_2,x_3)$ representation of the vector)
+\item comparison operators
+\end{itemize}
+Where again, here the subscripts run 0--3, with 0 being the
+time-like component. There are inspector methods which do not change the
+value of the vector, but return some property of the object
+\begin{itemize}
+\item inspect components in polar or cartesian representation
+\item inspect length (and length squared)
+\end{itemize}
+
+\subsection{The Implementation}
+\label{implementaion}
+The implementation for both [[threeVec]]s and [[fourVec]]s is in
+[[Vec.h]] and [[Vec.cc]].  The header file [[Vec.h]] has all the
+definitions of as well as the prototypes for the vector classes.  Guard
+[[#ifdef]]s prevent multiple inclusion.
+
+<<Vec.h>>=
+#ifndef __VEC_H_
+#define __VEC_H_
+#include <fstream>
+#include <cmath>
+#include <cassert>
+#include <pputil.h>
+	<<forward declarations>>
+	<<threeVec definition>>
+	<<fourVec definition>>
+	<<non-member function prototypes>>
+#endif
+
+@
+\subsubsection{[[threeVec]]'s}
+The [[threeVec]] definition
+
+<<threeVec definition>>=
+	class threeVec {
+		private:
+			<<threeVec private definitions>>
+		public:
+			<<threeVec public definitions>>
+	};
+
+@
+The internal representation of [[threeVecs]]s is for the time being a
+cartesian one.  I declare three [[double]]s and a private [[_init()]]
+method used by the constructors.
+<<threeVec private definitions>>=
+	double _x, _y, _z;
+	void _init(double, double, double);
+
+@
+The public declarations define the external interface to the
+[[threeVec]] class that the world sees.
+
+[[threeVec]] has three constructor methods: a default (no arguments), a
+three argument which sets components of the [[threeVec]], and a copy
+constructor.
+<<threeVec public definitions>>=
+	threeVec();
+	threeVec(double, double, double);
+	threeVec(const threeVec&);
+	~threeVec();
+
+@
+The mathematical operators.
+<<threeVec public definitions>>=
+	threeVec operator+(const threeVec&) const;
+	threeVec operator-(const threeVec&) const;
+	threeVec operator-() const;
+	double operator*(const threeVec&) const;
+@
+The cross product operator is choosen to be [[/]], since it has no
+obvious meaning as division for vectors and has the right precedence
+for a cross product.
+<<threeVec public definitions>>=
+	threeVec operator/(const threeVec&) const;
+@
+Scalar multiplication is defined as friend functions so that the order
+of the operands is not important.
+<<threeVec public definitions>>=
+	friend threeVec operator*(double,const threeVec&);
+	friend threeVec operator*(const threeVec&,double);
+@
+Assignment operators and combinations.  The [[*=]] operator is defined for scalar multiplication only.
+<<threeVec public definitions>>=
+	threeVec& operator=(const threeVec&);
+	threeVec& operator+=(const threeVec&);
+	threeVec& operator-=(const threeVec&);
+	threeVec& operator*=(double);
+
+@
+For I/O we define [[print()]] and [[scan()]] member function.
+<<threeVec public definitions>>=
+	const threeVec& print(std::ostream& = std::cout) const;
+	threeVec& scan(std::istream& is = std::cin);
+
+@
+Binary I/O will be done with [[read()]] and [[write()]] methods, for ascii output use the [[print()]] method.
+<<threeVec public definitions>>=
+	threeVec write(std::ostream&) const;
+	threeVec read(std::istream&);
+
+
+@
+The subscripting operator defines a way to inspect and set the components of the [[threeVec]].  {\em N.\/B.\/ This implies a underlying cartesian representation.}
+<<threeVec public definitions>>=
+	double& operator[](int);
+@
+To give some symmetry with the [[matrix]] template class, [[threeVec]] also has a [[el(int)]] subscripting method, which inlines a call to the [[operator[]]].
+<<threeVec public definitions>>=
+	double& el(int i) { return this->operator[](i); }
+@
+To set all the elements of a [[threeVec]] at once, use the [[set()]] member function.  The three arguments are the $x$, $y$, and $z$ components, respectively.
+<<threeVec public definitions>>=
+	threeVec set(double,double,double);
+
+
+
+@
+Comparison operators are defined for [[threeVec]] as: equality tests each component and magnatude tests length.
+<<threeVec public definitions>>=
+	int operator==(const threeVec&) const;
+	int operator!=(const threeVec&) const;
+	int operator<(const threeVec&) const;
+	int operator>(const threeVec&) const;
+	int operator>=(const threeVec&) const;
+	int operator<=(const threeVec&) const;
+
+@
+The inspection operators return information about the state of the vector.  We begin with a few simple inspectors that return the components of the vector in a cartesian or polar representation, and length or lengthSquared.
+<<threeVec public definitions>>=
+	double x() const;
+	double y() const;
+	double z() const;
+
+	double r() const;
+	double theta() const;
+	double cosTheta() const;
+	double phi() const;
+
+	double len() const;
+	double lenSq() const;
+
+@
+Mutators very similar to these inspectors are defined to set up [[threeVec]] given various polar or cartesian co-ordinates
+<<threeVec public definitions>>=
+	threeVec& x(double x);
+	threeVec& y(double y);
+	threeVec& z(double z);
+
+	threeVec& cartesian(double x,double y,double z);
+	threeVec& polar(double r,double theta,double phi);
+
+@
+For convenience, an operator for length of a [[threeVec]] is also supplied.
+<<threeVec public definitions>>=
+	double operator~() const;
+
+
+@
+\subsubsection{[[fourVec]]'s}
+The [[fourVec]] definition pretty much follows the same pattern.
+
+<<fourVec definition>>=
+	class fourVec {
+		private:
+			<<fourVec private definitions>>
+		public:
+			<<fourVec public definitions>>
+	};
+
+@
+The internal representation of [[fourVecs]]s is a [[threeVec]] and a
+[[double]] time component, along with the private [[_init()]] method
+used by the constructors.
+<<fourVec private definitions>>=
+	double _t;
+	threeVec _V;
+	void _init(double, threeVec);
+
+@
+The public declarations define the external interface to the
+[[fourVec]] class that the world sees.
+
+[[fourVec]] has three constructor methods: a default (no arguments), a
+two argument which sets components of the [[fourVec]], and a copy
+constructor.
+<<fourVec public definitions>>=
+	fourVec();
+	fourVec(double, threeVec);
+	fourVec(const fourVec&);
+	~fourVec();
+
+@
+The mathematical operators.
+<<fourVec public definitions>>=
+	fourVec operator+(const fourVec&) const;
+	fourVec operator-(const fourVec&) const;
+	fourVec operator-() const;
+	double operator*(const fourVec&) const;
+@
+The cross product operator is choosen to be [[/]], since it has no
+obvious meaning as division for vectors and has the right precedence
+for a cross product.  This operator returns the cross product of the
+[[threeVec]] components.
+<<fourVec public definitions>>=
+	threeVec fourVec::operator/(const fourVec&) const;
+@
+Scalar multiplication is defined as friend functions so that the order
+of the operands is not important.
+<<fourVec public definitions>>=
+	friend fourVec operator*(double,const fourVec&);
+	friend fourVec operator*(const fourVec&,double);
+
+@
+Assignment operators and combinations.  The [[*=]] operator is defined
+for scalar multiplication only.
+<<fourVec public definitions>>=
+	fourVec& operator=(const fourVec&);
+	fourVec& operator+=(const fourVec&);
+	fourVec& operator-=(const fourVec&);
+	fourVec& operator*=(double);
+
+@
+For I/O we define a [[print()]] member function.
+<<fourVec public definitions>>=
+	const fourVec& print(std::ostream& = std::cout) const;
+	fourVec& scan(std::istream& = std::cin);
+
+@
+The [[read()]] and [[write()]] methods provide binary I/O, for ascii output use the [[print()]] method.
+<<fourVec public definitions>>=
+	fourVec write(std::ostream&) const;
+	fourVec read(std::istream&);
+
+@
+[[fourVec]] has only one mutator for now, [[mass(m)]] assumes [[this]] is a four-momentum and sets the energy given the [[threeVec]] component and the argument [[m]].
+<<fourVec public definitions>>=
+	fourVec fourVec::mass(double);
+
+@
+The subscripting operator defines a way to inspect and set the
+components of the [[fourVec]]. The 0 element is the time coordinate.
+{\em N.\/B.\/ This implies a underlying cartesian representation of the
+[[threeVec]].}
+<<fourVec public definitions>>=
+	double& operator[](int);
+@
+To give some symmetry with the [[matrix]] template class, [[fourVec]] also has a [[el(int)]] subscripting method, which inlines a call to the [[operator[]]].
+<<fourVec public definitions>>=
+	double& el(int i) { return this->operator[](i); }
+@
+To set all the elements of a [[fourVec]] at once, use the [[set()]] member function.  The three arguments are the $t$, $x$, $y$, and $z$ components, respectively.
+<<fourVec public definitions>>=
+	fourVec set(double,double,double,double);
+@
+A [[fourVec]] can also be set using a [[double]] and a [[threeVec]].
+<<fourVec public definitions>>=
+	fourVec set(double,threeVec);
+
+@
+Comparison operators are defined for [[fourVec]] as: equality tests each component and magnatude tests length.
+<<fourVec public definitions>>=
+	int operator==(const fourVec&) const;
+	int operator!=(const fourVec&) const;
+	int operator<(const fourVec&) const;
+	int operator>(const fourVec&) const;
+	int operator>=(const fourVec&) const;
+	int operator<=(const fourVec&) const;
+
+@
+The inspection functions return information about the state of the vector.  We begin with a few simple inspectors that return the components of the [[threeVec]] in a cartesian or polar representation, and length or lengthSquared.  Note that [[r()]] returns the length of the [[threeVec]].
+<<fourVec public definitions>>=
+	threeVec V() const;
+	double x() const;
+	double y() const;
+	double z() const;
+	double t() const;
+
+	double r() const;
+	double theta() const;
+	double cosTheta() const;
+	double phi() const;
+
+@
+Mutators very similar to these inspectors are defined to set up a [[fourVec]] given various polar or cartesian co-ordinates
+<<fourVec public definitions>>=
+	fourVec& V(threeVec V);
+	fourVec& x(double x);
+	fourVec& y(double y);
+	fourVec& z(double z);
+	fourVec& t(double t);
+
+	fourVec& cartesian(double x,double y,double z);
+	fourVec& polar(double r,double theta,double phi);
+
+@
+The [[len()]] and [[lenSq()]] inspectors return the values for the [[fourVec]].
+<<fourVec public definitions>>=
+	double len() const;
+	double lenSq() const;
+
+
+@
+For convienience, an operator for length of a [[fourVec]] is also supplied
+<<fourVec public definitions>>=
+	double operator~() const;
+
+@
+To boost a [[fourVec]] use the multiplication defined in the [[matrix]] template.
+<<forward declarations>>=
+//	class matrix<double>;
+<<fourVec public definitions>>=
+//	fourVec operator*=(const matrix<double>&);
+//		*this = *this * T;
+//		return *this;
+//	}
+
+@
+\section{The Code}
+The code for the methods defined in~\ref{implementaion} is in the file [[Vec.cc]]
+
+<<Vec.cc>>=
+	<<includes and defines>>
+	<<namespace declarations>>
+	
+	<<threeVec methods>>
+	<<fourVec methods>>
+
+
+<<includes and defines>>=
+#include <Vec.h>
+
+<<namespace declarations>>=
+	using std::ostream;
+	using std::istream;
+	using std::endl;
+	using std::cerr;
+
+@
+\subsection{[[threeVec]]}
+
+The private [[_init]] method sets the components of the [[threeVec]]
+<<threeVec methods>>=
+	void threeVec::_init(double x, double y, double z) {
+		this->_x = x;
+		this->_y = y;
+		this->_z = z;
+	}
+@
+and is called by the constructors with the appropriate arguments
+<<threeVec methods>>=
+	threeVec::threeVec() {
+		this->_init(0.0, 0.0, 0.0);
+	}
+
+	threeVec::threeVec(double x, double y, double z) {
+		this->_init(x, y, z);
+	}
+
+	threeVec::threeVec(const threeVec& V) {
+		this->_init(V._x, V._y, V._z);
+	}
+
+@
+Since nothing is done in the constructor aside from initialization of the [[double]]'s the destructor does not need to do anything
+<<threeVec methods>>=
+	threeVec::~threeVec() {
+		;
+	}
+
+@
+Most of the mathematical operators are very straightforward
+<<threeVec methods>>=
+	threeVec threeVec::operator+(const threeVec& V) const {
+		return threeVec(this->_x + V._x,
+			this->_y + V._y,
+			this->_z + V._z);
+	}
+
+	threeVec threeVec::operator-(const threeVec& V) const {
+		return threeVec(this->_x - V._x,
+			this->_y - V._y,
+			this->_z - V._z);
+	}
+
+	threeVec threeVec::operator-() const {
+		return threeVec( -this->_x, -this->_y, -this->_z);
+	}
+
+	double threeVec::operator*(const threeVec& V) const {
+		return (this->_x*V._x + this->_y*V._y + this->_z*V._z);
+	}
+
+	threeVec threeVec::operator/(const threeVec& V) const {
+		return threeVec(this->_y*V._z - this->_z*V._y,
+			this->_z*V._x - this->_x*V._z,
+			this->_x*V._y - this->_y*V._x);
+	}
+
+@
+The scalar multiplication operators are friends. The second operator calls the first with the argument order reversed.  While this has the overhead of the extra function call,  most people would write scalar multiplication as $\alpha \vec{v}$ so this shouldn't be much of a penalty.
+<<threeVec methods>>=
+	threeVec operator*(double a, const threeVec& V) {
+		return threeVec(a*V._x, a*V._y, a*V._z);
+	}
+
+	threeVec operator*(const threeVec& V, double a) {
+		return ( a*V );
+	}
+
+@
+The assignment opertaors:
+<<threeVec methods>>=
+	threeVec& threeVec::operator=(const threeVec& V) {
+		this->_x = V._x;
+		this->_y = V._y;
+		this->_z = V._z;
+		return *this;
+	}
+
+	threeVec& threeVec::operator+=(const threeVec& V) {
+		this->_x += V._x;
+		this->_y += V._y;
+		this->_z += V._z;
+		return *this;
+	}
+
+	threeVec& threeVec::operator-=(const threeVec& V) {
+		this->_x -= V._x;
+		this->_y -= V._y;
+		this->_z -= V._z;
+		return *this;
+	}
+
+	threeVec& threeVec::operator*=(double a) {
+		this->_x *= a;
+		this->_y *= a;
+		this->_z *= a;
+		return *this;
+	}
+
+@
+The [[print()]] and [[scan()]] methods handle ascii representaions of the [[threeVec]] on iostreams.
+<<threeVec methods>>=
+	const threeVec& threeVec::print(ostream& os) const {
+		os << this->_x << "\t" << this->_y << "\t" << this->_z << endl;
+		return *this;
+	}
+
+	threeVec& threeVec::scan(istream& is) {
+		is >> this->_x;
+		is >> this->_y;
+		is >> this->_z;
+		return *this;
+	}
+
+@
+Non-member stream operators give access to the ``shift'' operators.
+<<threeVec methods>>=
+	ostream& operator<<(ostream& os, const threeVec& V) {
+		V.print(os);
+		return os;
+	}
+
+	istream& operator>>(istream& is, threeVec& V) {
+		V.scan(is);
+		return is;
+	}
+
+@
+Put the prototypes for these in the header file:
+<<non-member function prototypes>>=
+	std::ostream& operator<<(std::ostream& os, const threeVec& V);
+	std::istream& operator>>(std::istream& is, threeVec& V);
+
+@
+The [[read()]] and [[write()]] provide binary input and output
+<<threeVec methods>>=
+	threeVec threeVec::write(ostream& os) const {
+		os.write((char*) &(this->_x), sizeof(this->_x) );
+		os.write((char*) &(this->_y), sizeof(this->_y) );
+		os.write((char*) &(this->_z), sizeof(this->_z) );
+		os.flush();
+		return *this;
+	}
+	
+	threeVec threeVec::read(istream& is) {
+		is.read((char*) &(this->_x), sizeof(this->_x) );
+		is.read((char*) &(this->_y), sizeof(this->_y) );
+		is.read((char*) &(this->_z), sizeof(this->_z) );
+		return *this;
+	}
+
+@
+The subscripting operator
+<<threeVec methods>>=
+	double& threeVec::operator[](int index) {
+		assert(index >=0 && index <=2);
+		switch(index) {
+			case 0:
+				return _x;
+				break;
+			case 1:
+				return _y;
+				break;
+			case 2:
+				return _z;
+				break;
+			default:
+				cerr << "threeVec: error: index " << index << " out of bounds";
+				cerr << endl;
+				break;
+		}
+		return _x;
+	}
+
+
+<<threeVec methods>>=
+	threeVec threeVec::set(double x,double y,double z) {
+		this->_x = x;
+		this->_y = y;
+		this->_z = z;
+		return *this;
+	}
+
+@
+Comparison operators
+<<threeVec methods>>=
+	int threeVec::operator==(const threeVec& V) const {
+		return (this->_x==V._x
+			&& this->_y==V._y
+			&& this->_z==V._z);
+	}
+
+	int threeVec::operator!=(const threeVec& V) const {
+		return ( !(*this==V) );
+	}
+
+	int threeVec::operator<(const threeVec& V) const {
+		return ( this->lenSq() < V.lenSq() );
+	}
+
+	int threeVec::operator>(const threeVec& V) const {
+		return ( this->lenSq() > V.lenSq() );
+	}
+
+	int threeVec::operator>=(const threeVec& V) const {
+		return ( this->lenSq() >= V.lenSq() );
+	}
+
+	int threeVec::operator<=(const threeVec& V) const {
+		return ( this->lenSq() <= V.lenSq() );
+	}
+
+@
+The inspection operators
+<<threeVec methods>>=
+	double threeVec::x() const {
+		return this->_x;
+	}
+
+	double threeVec::y() const {
+		return this->_y;
+	}
+
+	double threeVec::z() const {
+		return this->_z;
+	}
+
+	double threeVec::r() const {
+		return pow( this->lenSq(),0.5 );
+	}
+
+	double threeVec::theta() const {
+		return acos( this->cosTheta() );
+	}
+
+	double threeVec::cosTheta() const {
+		return ( this->_z/this->r() );
+	}
+
+	double threeVec::phi() const {
+		return atan2( this->_y, this->_x );
+	}
+
+	double threeVec::len() const {
+		return pow(this->lenSq(),0.5);
+	}
+
+	double threeVec::lenSq() const {
+		return (this->_x*this->_x
+			+ this->_y*this->_y
+			+ this->_z*this->_z);
+	}
+
+	double threeVec::operator~() const {
+		return pow(this->lenSq(),0.5);
+	}
+
+@
+These mutators setup the appropriate components of the [[threeVec]]
+<<threeVec methods>>=
+	threeVec& threeVec::x(double x) {
+		this->_x = x;
+		return *this;
+	}
+	
+	threeVec& threeVec::y(double y) {
+		this->_y = y;
+		return *this;
+	}
+
+	threeVec& threeVec::z(double z) {
+		this->_z = z;
+		return *this;
+	}
+
+	threeVec& threeVec::cartesian(double x,double y,double z) {
+		this->_init(x, y, z);
+		return *this;
+	}
+
+	threeVec& threeVec::polar(double r,double theta,double phi) {
+		this->_x = r*sin(theta)*cos(phi);
+		this->_y = r*sin(theta)*sin(phi);
+		this->_z = r*cos(theta);
+		return *this;
+	}
+
+@
+\subsection{[[fourVec]]}
+
+The private [[_init]] method sets the components of the [[fourVec]]
+<<fourVec methods>>=
+	void fourVec::_init(double t, threeVec V) {
+		this->_t = t;
+		this->_V = V;
+	}
+@
+and is called by the constructors with the appropriate arguments
+<<fourVec methods>>=
+	fourVec::fourVec() {
+		this->_init(0.0,threeVec(0.0, 0.0, 0.0));
+	}
+
+	fourVec::fourVec(double t, threeVec V) {
+		this->_init(t,V);
+	}
+
+	fourVec::fourVec(const fourVec& v) {
+		this->_init(v._t,v._V);
+	}
+
+@
+Since nothing is done in the constructor aside from initialization of the data members, the destructor does not need to do anything
+<<fourVec methods>>=
+	fourVec::~fourVec() {
+		;
+	}
+
+@
+Most of the mathematical operators are very straightforward.  The cross product of two [[fourVec]]'s is defined to be the cross product of their [[threeVec]] components.
+<<fourVec methods>>=
+	fourVec fourVec::operator+(const fourVec& v) const {
+		return fourVec( this->_t + v._t,
+			this->_V + v._V );
+	}
+
+	fourVec fourVec::operator-(const fourVec& v) const {
+		return fourVec( this->_t - v._t,
+			this->_V - v._V );
+	}
+
+	fourVec fourVec::operator-() const {
+		return fourVec( -this->_t, -this->_V );
+	}
+
+	double fourVec::operator*(const fourVec& v) const {
+		return ( this->_t*v._t - this->_V*v._V );
+	}
+
+	threeVec fourVec::operator/(const fourVec& v) const {
+		return (this->_V/v._V );
+	}
+
+@
+The scalar multiplication operators are friends. The second operator calls the first with the argument order reversed.  While this has the overhead of the extra function call,  most people would write scalar multiplication as $\alpha v_\mu$ so this shouldn't be much of a penalty.
+<<fourVec methods>>=
+	fourVec operator*(double a, const fourVec& v) {
+		return fourVec(a*v._t, a*v._V);
+	}
+
+	fourVec operator*(const fourVec& v, double a) {
+		return fourVec(a*v._t, a*v._V);
+	}
+
+@
+The assignment opertaors:
+<<fourVec methods>>=
+	fourVec& fourVec::operator=(const fourVec& v) {
+		this->_t = v._t;
+		this->_V = v._V;
+		return *this;
+	}
+
+	fourVec& fourVec::operator+=(const fourVec& v) {
+		this->_t += v._t;
+		this->_V += v._V;
+		return *this;
+	}
+
+	fourVec& fourVec::operator-=(const fourVec& v) {
+		this->_t -= v._t;
+		this->_V -= v._V;
+		return *this;
+	}
+
+	fourVec& fourVec::operator*=(double a) {
+		this->_t *= a;
+		this->_V *= a;
+		return *this;
+	}
+
+@
+The [[print()]] and [[scan()]] methods handle ascii representaions of the [[fourVec]] on iostreams
+<<fourVec methods>>=
+	const fourVec& fourVec::print(ostream& os) const {
+		os << this->_t << "\t";
+		this->_V.print(os);
+		return *this;
+	}
+
+	fourVec& fourVec::scan(istream& is) {
+		is >> this->_t;
+		this->_V.scan(is);
+		return *this;
+	}
+
+@
+Non-member stream operators give access to the ``shift'' operators.
+<<fourVec methods>>=
+	ostream& operator<<(ostream& os, const fourVec& v) {
+		v.print(os);
+		return os;
+	}
+
+	istream& operator>>(istream& is, fourVec& v) {
+		v.scan(is);
+		return is;
+	}
+
+@
+Put the prototypes for these in the header file:
+<<non-member function prototypes>>=
+	std::ostream& operator<<(std::ostream& os, const fourVec& v);
+	std::istream& operator>>(std::istream& is, fourVec& v);
+
+@
+The [[read()]] and [[write()]] methods provide binary input and output
+<<fourVec methods>>=
+	fourVec fourVec::write(ostream& os) const {
+		os.write((char*) &(this->_t), sizeof(this->_t) );
+		this->_V.write(os);
+		os.flush();
+		return *this;
+	}
+	
+	fourVec fourVec::read(istream& is) {
+		is.read((char*) &(this->_t), sizeof(this->_t) );
+		this->_V.read(is);
+		return *this;
+	}
+
+@
+The subscripting operator
+<<fourVec methods>>=
+	double& fourVec::operator[](int index) {
+		assert(index >=0 && index <=3);
+		switch(index) {
+			case 0:
+				return _t;
+				break;
+			case 1:
+			case 2:
+			case 3:
+				return _V[index-1];
+				break;
+			default:
+				cerr << "fourVec: warning: index " << index << " out of bounds";
+				cerr << endl;
+				break;
+		}
+		return _t;
+	}
+
+@ To set a [[fourVec]] with 4 [[double]]'s, contruct a [[threeVec]] and use the [[set()]] method that takes a [[double]] and a [[threVec]]
+<<fourVec methods>>=
+	fourVec fourVec::set(double t,double x,double y,double z) {
+		this->set(t,threeVec(x,y,z));
+		return *this;
+	}
+
+<<fourVec methods>>=
+	fourVec fourVec::set(double t,threeVec V) {
+		this->_t = t;
+		this->_V = V;
+		return *this;
+	}
+
+@
+Comparison operators
+<<fourVec methods>>=
+	int fourVec::operator==(const fourVec& v) const {
+		return (this->_t==v._t && (this->_V == v._V) );
+	}
+
+	int fourVec::operator!=(const fourVec& v) const {
+		return ( !(*this==v) );
+	}
+
+	int fourVec::operator<(const fourVec& v) const {
+		return ( this->lenSq() < v.lenSq() );
+	}
+
+	int fourVec::operator>(const fourVec& v) const {
+		return ( this->lenSq() > v.lenSq() );
+	}
+
+	int fourVec::operator>=(const fourVec& v) const {
+		return ( this->lenSq() >= v.lenSq() );
+	}
+
+	int fourVec::operator<=(const fourVec& v) const {
+		return ( this->lenSq() <= v.lenSq() );
+	}
+
+@
+The inspection operators
+<<fourVec methods>>=
+	threeVec fourVec::V() const {
+		return this->_V;
+	}
+
+	double fourVec::t() const {
+		return this->_t;
+	}
+
+	double fourVec::x() const {
+		return this->_V.x();
+	}
+
+	double fourVec::y() const {
+		return this->_V.y();
+	}
+
+	double fourVec::z() const {
+		return this->_V.z();
+	}
+
+@
+The method [[r()]] returns the length of the [[threeVec]] component
+<<fourVec methods>>=
+	double fourVec::r() const {
+		return pow( this->_V.lenSq(),0.5 );
+	}
+
+	double fourVec::theta() const {
+		return acos( this->_V.cosTheta() );
+	}
+
+	double fourVec::cosTheta() const {
+		return ( this->_V.cosTheta() );
+	}
+
+	double fourVec::phi() const {
+		return ( this->_V.phi() );
+	}
+
+	double fourVec::len() const {
+		return pow(this->lenSq(),0.5);
+	}
+
+	double fourVec::lenSq() const {
+		return ( this->_t*this->_t - this->_V.lenSq() );
+	}
+
+	double fourVec::operator~() const {
+		return pow(this->lenSq(),0.5);
+	}
+
+@
+These mutators setup the appropriate components of the [[fourVec]]
+<<fourVec methods>>=
+	fourVec& fourVec::V(threeVec V) {
+		this->_V = V;
+		return *this;
+	}
+	
+	fourVec& fourVec::x(double x) {
+		this->_V.x(x);
+		return *this;
+	}
+
+	fourVec& fourVec::y(double y) {
+		this->_V.y(y);
+		return *this;
+	}
+
+	fourVec& fourVec::z(double z) {
+		this->_V.z(z);
+		return *this;
+	}
+
+	fourVec& fourVec::t(double t) {
+		this->_t = t;
+		return *this;
+	}
+
+	fourVec& fourVec::cartesian(double x,double y,double z) {
+		this->_V.cartesian(x, y, z);
+		return *this;
+	}
+
+	fourVec& fourVec::polar(double r,double theta,double phi) {
+		this->_V.polar(r, theta, phi);
+		return *this;
+	}
+
+@
+The [[mass(m)]] mutator sets $v_0 = \sqrt{|\vec{v}|^2 + m^2}$.
+<<fourVec methods>>=
+	fourVec fourVec::mass(double m) {
+		this->_t = pow( this->_V.lenSq()+m*m, 0.5 );
+		return *this;
+	}

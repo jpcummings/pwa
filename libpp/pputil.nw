@@ -1,0 +1,611 @@
+@
+
+<<pputil.h>>=
+#ifndef PPUTIL_H
+#define PPUTIL_H
+	<<includes>>
+	<<inline functions>>
+	<<macros>>
+	<<prototypes>>
+#endif
+
+
+<<includes>>=
+#include <iostream>
+#include <string>
+#include <complex>
+#include <cstdio>
+
+@
+These constants are defined to be
+same as GEANT. see http://wwwcn.cern.ch/asdoc/geant/H2GEANTCONS300.html
+for more details.
+
+<<includes>>=
+
+typedef enum {
+    g_Unknown = 0,
+    g_Gamma = 1,
+    g_Positron = 2,
+    g_Electron = 3,
+    g_Neutrino = 4,
+    g_MuonPlus = 5,
+    g_MuonMinus = 6,
+    g_Pi0 = 7,
+    g_PiPlus = 8,
+    g_PiMinus = 9,
+    g_KLong = 10,
+    g_KPlus = 11,
+    g_KMinus = 12,
+    g_Neutron = 13,
+    g_Proton = 14,
+    g_AntiProton = 15,
+    g_KShort = 16,
+    g_Eta = 17,
+    g_Lambda = 18,
+    g_SigmaPlus = 19,
+    g_Sigma0 = 20,
+    g_SigmaMinus = 21,
+    g_Xi0 = 22,
+    g_XiMinus = 23,
+    g_OmegaMinus = 24,
+    g_AntiNeutron = 25,
+    g_AntiLambda = 26,
+    g_AntiSigmaMinus = 27,
+    g_AntiSigma0 = 28,
+    g_AntiSigmaPlus = 29,
+    g_AntiXi0 = 30,
+    g_AntiXiPlus = 31,
+    g_AntiOmegaPlus = 32,
+
+    g_Deuteron = 45,
+    g_Triton = 49,
+
+    g_Rho0 = 57,
+    g_RhoPlus = 58,
+    g_RhoMinus = 59,
+    g_omega = 60,
+    g_EtaPrime = 61,
+    g_phiMeson = 62
+} Geant_ID;
+
+
+
+@
+The sign macro returns 1 with the same sign as the argument [[x]].  
+<<macros>>=
+#define signof(x) (x<0 ? -1 : 1)
+#define MAX(x,y) (x>y ? x : y)
+#define MIN(x,y) (x<y ? x : y)
+
+
+@
+The function [[D(a,b,g,j,m,n)]] returns the capital D-function
+$D^j_{mn}(a,b,g)$. The spin arguments [[j,m,n]] are all in units of
+$\hbar/2$, {\em i.e.}, the spin of the proton is 1.  The angle
+arguments [[a,b,g]] are the Euler angles $\alpha, \beta, \gamma$ in
+radians.
+
+[[clebsch(j1,j2,j3,m1,m2,m3)]] returns the Clebsch--Gordan coefficient
+$(j_1 m_1 j_2 m_2|j_3 m_3)$, were again, the spins are measured in
+units of $\hbar/2$.  The return value is a [[double]].
+
+The function [[clebs_]] is the underlying fortran
+function which is in [[qcxlib2]].
+
+<<prototypes>>=
+	std::complex<double> D(double alpha,double beta,double gamma,int j,int n,int m);
+	double clebsch(int j1,int j2,int j3,int m1,int m2,int m3);
+	extern "C" void clebs_(int*,int*,int*,int*,int*,int*,int*,int*);
+	double d_jmn_b(int J, int M, int N, double beta);
+	int fact(int i);
+	double dfact(double i);
+	double F(int n,double p);
+	double lambda(double a, double b, double c);
+	std::complex<double> q(double M, double m1, double m2);
+
+
+@
+Tabbing functions are used for helping to show the recursive structure
+of decay amplitude calculations in the debug printout. [[addtab()]] and
+[[subtab()]] increment and decrement a current indentation level that
+can be printed using [[ptab()]].  [[settab(n)]] will set the size
+of each tab or indentation level to [[n]] spaces, the default is $n=8$
+
+<<prototypes>>=
+	void addtab() ;
+	void subtab() ;
+	void ptab() ;
+	void settab(int) ;
+	std::string itos(int);
+	std::string chargetos(int);
+
+@
+Conversion functions for {\sc GEANT} particle id's translate from the
+integer {\sc GEANT} particle id and string representaions used in
+[[particleDataTable]].
+<<prototypes>>=
+	Geant_ID  name2id( std::string name,int q);
+	std::string  id2name( Geant_ID );
+
+@
+Although $\tilde{\ell} = \sqrt(2\ell + 1)$ it appears here as [[l+1]]
+since [[l]] is in units of $\hbar/2$.
+<<inline functions>>=
+inline double tilde(int l)
+{
+	return pow(l+1,0.5);
+}
+
+
+<<pputil.cc>>=
+#include <pputil.h>
+	<<namespace declarations>>
+	<<dfunctions>>
+	<<clebsch-gordon coefficients>>
+	<<blatt-weisskopf barrier functions>>
+	<<lambda function>>
+	<<factorial>>
+	<<tabbing functions>>
+	<<geantID functions>>
+	<<string functions>>
+
+<<namespace declarations>>=
+	using std::complex;
+	using std::string;
+	using std::cout;
+	using std::cerr;
+	using std::endl;
+
+@
+The Wigner D--function $D^j_{mn}(\alpha, \beta, \gamma)$ is calculated
+by [[D(a,b,g,j,m,n)]] as given in {\em Elementary
+Theory of Angular Momentum} by M. E. Rose.  They are simply written
+as:
+
+$$
+	D^j_{mn}(\alpha, \beta, \gamma) = e^{-im\alpha}d^j_{mn}(\beta)e^{-in\gamma}
+$$
+
+$d^j_{mn}(\beta)$ is calculated by [[d_jmn_b()]] given below, and
+multiplied here by  $e^{-im\alpha}e^{-in\gamma} =
+e^{-i(m\alpha+n\gamma)}$.
+<<dfunctions>>=
+complex<double> D(double alpha,double beta,double gamma,int j,int m,int n)
+{
+    complex<double> c;
+    complex<double> i(0,1);
+
+    c = exp( -i*((m/2.0)*alpha+(n/2.0)*gamma) ) * d_jmn_b(j,m,n,beta);
+
+    return(c);
+}
+
+@
+The beta term in Wigner's D--function.  The function
+[[d_jmn_b(J,M,N,beta)]] will return $d^j_{mn}(\beta)$, where $j=J/2$,
+$m=M/2$, $n=N/2$, {\em i. e.}, spins are measured in units of
+$\hbar/2$.  The range of the angle is $-\pi < \beta < \pi$, where
+$\beta$ is in radians.
+
+The formula used is from {\em Quantum theory of angular momentum} by
+D.A. Varshalovich, A.N. Moskalev and V.K. Khersonskii, and is given as:
+
+\begin{eqnarray*}
+d^j_{nm}(\beta) & = & (-1)^{j+m}\sqrt{(j+m)!(j-m)!(j+n)!(j-n)!}\times \\
+		&   & \sum_k(-1)^k\frac{\cos^{2k-m-n}(\beta/2)\sin^{2j+m+n-2k}(\beta/2)}{k!(j+m-k)!(j+n-k)!(k-m-n)!}
+\end{eqnarray*}
+
+See also the {\sc CERNLIB} short writeup for [[RDJMNB]] in {\sc MATHLIB}.
+
+The relation $d^j_{mn}(-\beta) = d^j_{nm}(\beta)$ is used to calculate
+the value if $\beta$ is negative.
+
+The term outside of the sum,
+$$
+(-1)^{j+m}\sqrt{(j+m)!(j-m)!(j+n)!(j-n)!}
+$$
+is calculated first, and
+kept in [[const_term]]. Note that the arguments to the factorials are
+always integer, even if $j$, $m$ and $n$ are half integer.
+
+<<dfunctions>>=
+double d_jmn_b(int J, int M, int N, double beta)
+{
+
+    int temp_M, k, k_low, k_hi;
+    double const_term = 0.0, sum_term = 0.0, d = 1.0;
+    int m_p_n, j_p_m, j_p_n, j_m_m, j_m_n;
+    int kmn1, kmn2, jmnk, jmk, jnk;
+    double kk;
+
+    if (J < 0 || abs (M) > J || abs (N) > J) {
+	cerr << endl;
+	cerr << "d_jmn_b: you have entered an illegal number for J, M, N." << endl;
+	cerr << "Must follow these rules: J >= 0, abs(M) <= J, and abs(N) <= J." << endl;
+	cerr << "J = " << J <<  " M = " << M <<  " N = " << N << endl;
+	exit (1);
+    }
+
+    if (beta < 0) {
+	beta = fabs (beta);
+	temp_M = M;
+	M = N;
+	N = temp_M;
+    }
+
+    m_p_n = (M + N) / 2;
+    j_p_m = (J + M) / 2;
+    j_m_m = (J - M) / 2;
+    j_p_n = (J + N) / 2;
+    j_m_n = (J - N) / 2;
+	
+   kk = (double) fact (j_p_m) * (double) fact (j_m_m) * (double) fact (j_p_n) * (double) fact (j_m_n) ;
+  const_term = pow ((-1.0), (j_p_m)) * sqrt (kk);	
+ 
+    k_low = MAX (0, m_p_n);
+    k_hi = MIN (j_p_m, j_p_n);
+
+    for (k = k_low; k <= k_hi; k++) {
+
+	kmn1 = 2 * k - (M + N) / 2;
+	jmnk = J + (M + N) / 2 - 2 * k;
+	jmk = (J + M) / 2 - k;
+	jnk = (J + N) / 2 - k;
+	kmn2 = k - (M + N) / 2;
+
+	sum_term += pow ((-1.0), (k)) *
+	    ((pow (cos (beta / 2.0), kmn1)) * (pow (sin (beta / 2.0), jmnk))) /
+	    (fact (k) * fact (jmk) * fact (jnk) * fact (kmn2));
+    }
+
+    d = const_term * sum_term;
+    return d;
+}
+
+@
+The function [[fact(i)]] returns the factorial of its intger argument [[i]].
+
+<<factorial>>=
+int fact(int i)
+{
+    int f = 1;
+    if (i == 0 || i == 1)
+	f = 1;
+    else {
+	while (i > 0) {
+	    f = f * i;
+	    i--;
+	}
+    }
+    return f;
+}
+
+@
+Clebsch-Gordon coefficients are calculated as given by Rose--{\em Elementary Theory of Angular Momentum} Eq. 3.18, which is an expression originally due to Wigner:
+\begin{eqnarray*}
+\lefteqn{C(j_1j_2j_3;m_1m_2m_3) = \delta_{m_3,m_1+m_2} } \\
+& & \times \left[ (2j_3+1)\frac{(j_3+j_1-j_2)!(j_3-j_1+j_2)!(j_1+j_2-j_3)!(j_3+m_3)!(j_3-m_3)!}{(j_1+j_2+j_3+1)!(j_1-m_1)!(j_1+m_1)!(j_2-m_2)!(j_2+m_2)!}\right]^\frac{1}{2} \\
+& & \times \sum_\nu \frac{(-)^{\nu+j_2+m_2} (j_2+j_3+m_1-\nu)!(j_1-m_1+\nu)!}{\nu!(j_3-j_1+j_2-\nu)!(j_3+m_3-\nu)!(\nu+j_1-j_2-m_3)!}
+\end{eqnarray*}
+The integer arguments are in units of $\hbar/2$, hence all the divisions by 2 in the factorials. To avoid problems with overflows of [[int]]'s we take the factorials of [[double]] arguments.  The sum over $\nu$ takes on all integer values such that none of the arguments to the factorials are negative.
+
+The first while loop increments $\nu$ until the two terms with $+\nu$ are positive.  These will remain positive as $\nu$ increases.  The second while loop continues incrementing $\nu$ until one of the terms with $-\nu$ is negative, after which it will always be negative.
+
+<<clebsch-gordon coefficients>>=
+double clebsch(int j1, int j2, int j3, int m1, int m2, int m3) {
+
+	int nu = 0;
+	double exp;
+	double n0, n1, n2, n3, n4, n5;
+	double d0, d1, d2, d3, d4;
+	double sum;
+	double A;
+
+	if ( (m1 + m2) != m3 ) {
+		return 0;
+	}
+
+	sum = 0;
+	while ( (d3=(j1-j2-m3)/2+nu) < 0
+		|| (n2=(j1-m1)/2+nu) < 0 ) { nu++;}
+	while ( (d1=(j3-j1+j2)/2-nu) >= 0
+		&& (d2=(j3+m3)/2-nu) >= 0
+		&& (n1=(j2+j3+m1)/2-nu) >= 0 ) {
+		d3=((j1-j2-m3)/2+nu);
+		n2=((j1-m1)/2+nu);
+		d0=dfact((double) nu);
+		exp=nu+(j2+m2)/2;
+		n0 = (double) pow(-1,exp);
+		sum+=(n0*dfact(n1)*dfact(n2))/(d0*dfact(d1)*dfact(d2)*dfact(d3));
+		nu++;
+	}
+
+	if ( sum == 0 ) {
+		return 0;
+	}
+
+	n0 = j3+1;
+	n1 = dfact((double) (j3+j1-j2)/2);
+	n2 = dfact((double) (j3-j1+j2)/2);
+	n3 = dfact((double) (j1+j2-j3)/2);
+	n4 = dfact((double) (j3+m3)/2);
+	n5 = dfact((j3-m3)/2);
+	
+	d0 = dfact((double) (j1+j2+j3)/2+1);
+	d1 = dfact((double) (j1-m1)/2);
+	d2 = dfact((double) (j1+m1)/2);
+	d3 = dfact((double) (j2-m2)/2);
+	d4 = dfact((double) (j2+m2)/2);
+
+	A = ((double) (n0*n1*n2*n3*n4*n5))/((double) (d0*d1*d2*d3*d4));
+	
+	return pow(A,0.5)*sum;
+		
+}
+
+@
+This is a version of factorial for [[double]] arguments which returns a [[double]].
+<<clebsch-gordon coefficients>>=
+double dfact(double i) {
+
+	if (i < 0.00001) return 1;
+	if (i < 0) return 0;
+	return i*dfact(i-1);
+}
+
+@
+The Blatt-Weisskopf barrier functions.
+The Blatt-Weisskopf centrifugal barrier factors as given by von Hippel and Quigg
+{\em Frank von Hippel and C. Quigg, Phys. Rev 5, 624 (1972) }
+
+<<blatt-weisskopf barrier functions>>=
+
+double F(int n,double p)
+{
+
+#define Pr 0.1973 // Gev/c corresponds to 1 fermi
+    
+    double ret;
+    double z = (p/Pr) * (p/Pr);
+	int m = n/2;
+	switch (m) {
+	case 0:
+	  ret = 1.0;
+	  break;
+	case 1:
+	  ret = sqrt((2.0 * z)/(z + 1));
+	  break;
+	case 2:
+	  ret = sqrt((13.0 * z * z)/(pow(z - 3.0,2.0) + 9.0 * z));
+	  break;
+	case 3:
+	  ret = sqrt( (277.0 * pow(z,3.0))/(z * pow(z - 15.0,2.0) + 9.0 * pow(2.0 * z - 5.0,2.0)));
+	  break;
+	case 4:
+	  ret = sqrt( (12746.0 * pow(z,4.0))/( pow(z * z - 45.0 * z + 105.0,2.0) + 25.0 * z * pow(2.0 * z - 21.0,2.0)));
+	  break;
+	case 5:
+	  ret =  sqrt(z*z*z*z*z/(893025.0 +99225.0*z +6300.0*z*z +315.0*z*z*z +15.0*z*z*z*z +z*z*z*z*z));
+	  break;
+	default:
+	    cerr << "Blatt-Weisskopf called for undefined L = " << n/2 << endl;
+	    ret = 1.0;
+	    break;
+    }
+    return(ret);
+}
+
+@
+The Breit-Wigner Amplitude is defined as given by {\em S. U. Chung} in {\em Formulas for Partial Wave Analysis}:
+$$
+\Delta_{BW}(w)=\frac{w_0\Gamma_0}{w_0^2-w^2-iw_0\Gamma_v(w)}
+$$
+where
+$$
+\Gamma_v(w)=\Gamma_0\frac{w_0}{w}\frac{q}{q_0}\frac{F_s^2(q)}{F_s^2(q_0)}
+$$
+
+<<lambda function>>=
+double lambda(double a, double b, double c)
+{
+	return( a*a + b*b + c*c - 2.0*(a*b + b*c + c*a) );
+}
+
+complex<double> q(double M, double m1, double m2) {
+
+		complex<double> ret;
+		double lam = lambda(M*M,m1*m1,m2*m2);
+
+		if (lam < 0) {
+			ret = complex<double>( 0.0, sqrt(fabs(lam/(4*M*M))) );
+		}
+		else {
+			ret = complex<double>( sqrt(lam/(4*M*M)), 0.0 );
+		}
+
+		return( ret );
+}
+
+
+
+@
+[[ntab]] and [[tabsize]] are declared at file scope, so all the tabbing functions share the same values.
+
+<<tabbing functions>>=
+	int ntab = 0;
+	int tabsize = 8;
+
+	void addtab() {
+		ntab++;
+	}
+
+	void subtab() {
+		ntab--;
+		if (ntab<0) ntab=0;
+	}
+
+	void ptab() {
+		for (int i = 0; i < ntab; i++) {
+			for (int s = 0; s < tabsize ; s++) cout << " ";
+		}
+	}
+
+	void settab(int nchar) {
+		tabsize = nchar;
+	}
+
+<<geantID functions>>=
+string id2name(Geant_ID type) 
+{
+    switch (type) {
+    case g_EtaPrime:
+	return "eta'(958)";
+	break;
+    case g_PiMinus:
+    case g_PiPlus:
+	return "pi";
+	break;
+    case g_KMinus:
+    case g_KPlus:
+	return "K";
+	break;
+    case g_Pi0:
+	return "pi0";
+	break;
+    case g_Eta:
+	return "eta";
+	break;
+    case g_omega:
+	return ("omega(782)");
+	break;
+    case g_Proton:
+	return "p";
+	break;
+	case g_AntiProton:
+	return("pbar");
+	break;
+    case g_Neutron:
+	return "n";
+	break;
+    case g_Gamma:
+	return ("gamma");
+	break;
+    case g_Electron:
+    case g_Positron:
+	return ("e");
+	break;
+    case g_Deuteron:
+	return("d");
+	break;
+	
+    case g_Lambda:
+	return ("lambda");
+	break;
+    default:
+	return "unknown";
+	break;
+    }
+}
+
+Geant_ID  name2id(string name,int q)
+{
+    if (name == "pi") {
+	switch (q) {
+	case -1:
+	    return g_PiMinus;
+	    break;
+	case 1:
+	    return g_PiPlus;
+	    break;
+	}
+    }
+	else if (name == "omega(782)") {
+		return(g_omega);
+	}
+    else if (name == "e") {
+	switch (q) {
+	case -1:
+	    return g_Electron;
+	    break;
+	case 1:
+	    return g_Positron;
+	    break;
+	}
+    }
+    else if (name == "K") {
+	switch (q) {
+	case -1:
+	    return g_KMinus;
+	    break;
+	case 1:
+	    return g_KPlus;
+	    break;
+	}
+    }
+    else if (name == "KShort") {
+	return g_KShort;
+    }
+    else if (name == "KLong") {
+	return g_KLong;
+    }
+    else if (name == "pi0") {
+	return g_Pi0;
+    }
+    else if (name == "eta") {
+	return g_Eta;
+    }
+	else if (name == "phi(1020)") {
+	return g_phiMeson;
+	}
+    else if (name == "p") {
+	return g_Proton;
+    }
+    else if (name == "pbar") {
+	return g_AntiProton;
+    }
+    else if (name == "n") {
+	return g_Neutron;
+    }
+    else if (name == "d") {
+	return g_Deuteron;
+    }
+    else if (name == "gamma") {
+	return g_Gamma;
+    }
+    else if (name == "eta'(958)") {
+	return g_EtaPrime;
+    }
+    else if (name == "lambda") {
+	return g_Lambda;
+    }
+	
+    else
+	return (g_Unknown);
+
+    return (g_Unknown);
+}
+
+<<string functions>>=
+string itos(int i) {
+	int digits = (int) log10((float) i)+2;
+	char* c_s = (char*) malloc (digits*sizeof(char));
+	string s;
+	
+	sprintf(c_s,"%d",i);
+	s = c_s;
+	return s;
+}
+
+string chargetos(int charge) {
+	string s;
+	string c;
+	
+	if(charge) {
+		c =  charge<0 ? "-" : "+";
+		charge = abs(charge);
+		while(charge--) s+= c;
+	}
+	return s;
+}
+

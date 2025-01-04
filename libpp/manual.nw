@@ -1,0 +1,36 @@
+<<*>>=
+\documentclass{report}
+\usepackage{noweb}
+\pagestyle{noweb}
+\noweboptions{longchunks,smallcode}
+
+\begin{document}
+
+\title{ The {\tt libpp} library }
+\author{ John P Cummings \and Dennis P. Weygand }
+\maketitle
+
+\tableofcontents
+
+\chapter{Vectors}
+\input{Vec}
+
+\chapter{Matrices}
+\input{matrix}
+
+\chapter{Lorentz Transformations}
+\input{lorentz}
+
+\chapter{The Particle Data Table}
+\input{particleData}
+
+\chapter{A Physical Particle}
+\input{particle}
+
+\chapter{An event}
+\input{event}
+
+\chapter{Support Routines}
+\input{pputil}
+
+\end{document}
