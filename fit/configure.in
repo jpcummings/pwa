@@ -1,0 +1,39 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(fit.cc)
+AM_INIT_AUTOMAKE(fit, 1.0)
+
+AC_CANONICAL_HOST
+
+CPPFLAGS="-I. -I$includedir"
+LIBS="-L$libdir -L${CERNLIBDIR:=.}"
+
+dnl Checks for programs.
+AC_CHECK_PROGS(NOWEAVE,noweave,no)
+if test "$NOWEAVE" = no; then
+  AC_MSG_WARN(documentation cannot be built since noweave is not found)
+fi
+AC_CHECK_PROGS(NOTANGLE,notangle,no)
+if test "$NOTANGLE" = no; then
+  AC_MSG_ERROR(libpp.a cannot be built since notangle is not found)
+fi
+AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_F77
+AC_PROG_YACC
+AM_PROG_LEX
+
+dnl Checks for libraries.
+dnl Replace `main' with a function in -lpacklib:
+AC_CHECK_LIB(packlib, intrac_)
+
+AC_F77_LIBRARY_LDFLAGS
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS(unistd.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+
+dnl Checks for library functions.
+
+AC_OUTPUT(Makefile)

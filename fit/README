@@ -1,0 +1,5 @@
+
+The fitting program uses minuit as it's minimizer.  You must link to
+libpacklib.a when building.  setting the CERNLIBDIR environment variable
+will allow configure to find packlib automatically.
+
